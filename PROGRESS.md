@@ -2,6 +2,14 @@
 
 > 每个 Phase 结束时更新：完成项 / 未完成 / 阻塞 / 下一步。冲突时以 PROMPT.md 为准。
 
+## 演示素材
+
+- `fixtures/media/` 清单与来源见 [fixtures/README.md](fixtures/README.md)。
+- 用户提供 `clean_ai.png`（豆包 AI 生成人像）：已入库，用作 Phase 2 干净 AI 负例 /
+  Phase 6 评测样本；OCR 可读出「豆包AI生成」水印。
+- 用户提供 `hero.mp4`（13.1s 真人自拍，普通人像）：**未入库**，仅本地负例；
+  是否入库待确认（涉及真实个人面部与提交材料公开范围）。
+
 ## Phase 1（2026-11-25）✅
 
 **验收**：`make verify-1`（等价 `make p1` / `python scripts/p1_check.py`）
