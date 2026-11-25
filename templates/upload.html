@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}素材哨兵 · 上传{% endblock %}
+{% block content %}
+<header class="top">
+  <h1>素材哨兵 AdSentry</h1>
+  <span class="sub">上线前风险信号筛查 · 只提示风险，不做法律判定</span>
+</header>
+
+<div class="panel">
+  <form id="upload-form">
+    <p style="margin-top:0">上传图片或短视频（≤ {{ max_upload_mb }}MB），系统返回带证据链的风险信号。</p>
+    <div class="row">
+      <input id="file" type="file" accept="image/*,video/*" required>
+      <button class="btn primary" type="submit">上传并检测</button>
+      <span id="status" class="muted"></span>
+    </div>
+  </form>
+</div>
+
+<div id="result"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+const statusEl = document.getElementById('status');
+
+function setStatus(text) { statusEl.textContent = text; }
+
+document.getElementById('upload-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const file = document.getElementById('file').files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append('file', file);
+  setStatus('上传中…');
+  const startedAt = performance.now();
+  const resp = await fetch('/api/upload', { method: 'POST', body: form });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) { setStatus(data.detail || '上传失败'); return; }
+  setStatus('已受理，检测中…');
+  pollJob(data.job_id, startedAt);
+});
+
+async function pollJob(jobId, startedAt) {
+  for (let i = 0; i < 240; i++) {
+    const resp = await fetch(`/api/jobs/${jobId}`);
+    const data = await resp.json();
+    if (data.job.status === 'done' || data.job.status === 'failed') {
+      setStatus('');
+      renderResult(data, ((performance.now() - startedAt) / 1000).toFixed(1));
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  setStatus('处理超时，请刷新重试');
+}
+
+function renderResult(data, seconds) {
+  const root = document.getElementById('result');
+  root.replaceChildren();
+
+  if (data.job.status === 'failed') {
+    const panel = document.createElement('div');
+    panel.className = 'panel';
+    panel.textContent = '处理失败：' + (data.job.error || '未知错误');
+    root.append(panel);
+    return;
+  }
+
+  const card = document.createElement('div');
+  card.className = 'panel';
+
+  const head = document.createElement('div');
+  head.className = 'row';
+  const title = document.createElement('strong');
+  title.textContent = data.card ? data.card.header.title.content : '未发现风险信号';
+  head.append(title);
+  const time = document.createElement('span');
+  time.className = 'muted';
+  time.textContent = `耗时 ${seconds}s`;
+  head.append(time);
+  card.append(head);
+
+  for (const finding of data.findings) {
+    const block = document.createElement('div');
+    block.className = 'finding';
+    const line = document.createElement('div');
+    line.className = 'title';
+    const badge = document.createElement('span');
+    badge.className = 'badge ' + finding.level;
+    badge.textContent = finding.level;
+    line.append(badge, ' ', finding.suggestion);
+    block.append(line);
+    const meta = document.createElement('div');
+    meta.className = 'muted';
+    meta.textContent = `类别 ${finding.category} · 置信 ${finding.confidence == null ? '—' : finding.confidence.toFixed(2)}`;
+    block.append(meta);
+    card.append(block);
+  }
+
+  const actionEl = data.card && data.card.elements.find((el) => el.tag === 'action');
+  const reviewUrl = actionEl && actionEl.actions && actionEl.actions[0] && actionEl.actions[0].url;
+  if (reviewUrl) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.style.marginTop = '14px';
+    const link = document.createElement('a');
+    link.className = 'btn primary';
+    link.href = reviewUrl;
+    link.textContent = '查看证据链';
+    row.append(link);
+    card.append(row);
+  }
+
+  root.append(card);
+}
+</script>
+{% endblock %}

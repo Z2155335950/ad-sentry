@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}复核 · {{ category_label }}{% endblock %}
+{% block content %}
+<header class="top">
+  <h1>证据链复核</h1>
+  <span class="sub">人工确认或驳回，结果写回台账</span>
+</header>
+
+<div class="panel">
+  <div class="row" style="justify-content: space-between">
+    <div>
+      <span class="badge {{ finding.level }}">{{ finding.level }}</span>
+      <strong style="margin-left: 8px">{{ category_label }}</strong>
+      <span class="muted" style="margin-left: 8px">
+        置信 {{ "%.2f"|format(finding.confidence) if finding.confidence is not none else "—" }}
+      </span>
+    </div>
+    <span class="muted" id="review-status">复核状态：{{ review_status_label }}</span>
+  </div>
+  <p style="margin: 12px 0 4px">{{ finding.suggestion }}</p>
+  {% if asset %}
+  <p class="muted" style="margin: 0">
+    素材：{{ asset.media_type }}
+    {% if asset.width %} · {{ asset.width }}×{{ asset.height }}{% endif %}
+    · sha256 <code>{{ asset.sha256[:16] }}…</code>
+  </p>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <strong>证据（{{ evidences|length }}）</strong>
+  {% set kind_labels = {"reference": "参照物", "clause": "条款", "bbox": "位置", "timestamp": "时间戳", "metadata": "元数据", "license": "授权记录"} %}
+  <ul class="ev" style="margin-top: 10px">
+    {% for ev in evidences %}
+    <li>
+      [{{ kind_labels.get(ev.kind, ev.kind) }}]
+      {% if ev.ref_record_id %}{{ ev.ref_record_id }}{% endif %}
+      {% if ev.clause_id %}{{ ev.clause_id }}{% endif %}
+      {% if ev.bbox %}<code>bbox({{ ev.bbox }})</code>{% endif %}
+      {% if ev.t_start is not none %}<code>t={{ "%.1f"|format(ev.t_start) }}s</code>{% endif %}
+      {% if ev.ref_url %} <a href="{{ ev.ref_url }}" target="_blank" rel="noopener">来源链接</a>{% endif %}
+      {% if ev.note %}<br><span class="muted">{{ ev.note }}</span>{% endif %}
+    </li>
+    {% else %}
+    <li>无证据记录</li>
+    {% endfor %}
+  </ul>
+</div>
+
+<div class="panel">
+  <strong>复核动作</strong>
+  <p class="muted" style="margin: 6px 0 10px">驳回必须填写理由，理由用于阈值与规则回流。</p>
+  <textarea id="reason" placeholder="驳回理由 / 复核备注"></textarea>
+  <div class="row" style="margin-top: 10px">
+    <button class="btn primary" id="btn-confirm" type="button">确认风险</button>
+    <button class="btn danger" id="btn-reject" type="button">驳回</button>
+    <span class="muted" id="action-status"></span>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const FINDING_ID = {{ finding.id }};
+const TOKEN = {{ token | tojson }};
+const actionStatus = document.getElementById('action-status');
+
+async function submitAction(action) {
+  const reason = document.getElementById('reason').value;
+  actionStatus.textContent = '提交中…';
+  const resp = await fetch(
+    `/api/review/${FINDING_ID}/action?token=${encodeURIComponent(TOKEN)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, reason }),
+    },
+  );
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    actionStatus.textContent = data.detail || '操作失败';
+    return;
+  }
+  actionStatus.textContent = data.review_status === 'confirmed' ? '已确认为风险' : '已驳回';
+  document.getElementById('review-status').textContent =
+    '复核状态：' + (data.review_status === 'confirmed' ? '已确认' : '已驳回');
+}
+
+document.getElementById('btn-confirm').addEventListener('click', () => submitAction('confirm'));
+document.getElementById('btn-reject').addEventListener('click', () => submitAction('reject'));
+</script>
+{% endblock %}

@@ -1,0 +1,41 @@
+{
+  "note": "Phase 0 占位流水线的 fixture 输出。真实检测链路接入后仅用于 DEMO_MODE 与测试。",
+  "findings": [
+    {
+      "tool": "fixture",
+      "category": "logo",
+      "level": "P1",
+      "confidence": 0.82,
+      "suggestion": "检测到疑似 Nike 商标标识，建议上线前确认商标授权",
+      "evidence": [
+        {
+          "kind": "reference",
+          "ref_record_id": "USPTO 1234567",
+          "ref_url": "https://tmsearch.uspto.gov/search/search-information",
+          "note": "Google Vision LOGO_DETECTION 命中 Nike，注册信息来自自建品牌库"
+        },
+        {
+          "kind": "bbox",
+          "bbox": "0.71,0.12,0.88,0.30",
+          "t_start": 3.2,
+          "t_end": 4.8,
+          "note": "最佳帧 00:03.2"
+        }
+      ]
+    },
+    {
+      "tool": "fixture",
+      "category": "policy",
+      "level": "P2",
+      "confidence": 0.6,
+      "suggestion": "画面含绝对化用语，建议核对平台价格宣传条款",
+      "evidence": [
+        {
+          "kind": "clause",
+          "clause_id": "TIKTOK-AD-014",
+          "note": "TikTok Advertising Policies · 误导性声明（生效日期 2025-01-01）"
+        }
+      ]
+    }
+  ]
+}
