@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "note": "Phase 3 mock：sample_15s.mp4 第 2 镜的 NIKE 文字；Vision 与 CLIP 两路模拟命中 + OCR 真实命中构成三路证据。",
+  "note": "Phase 3/8 mock：sample_15s.mp4 第 2 镜 NIKE 文字（Vision + CLIP 两路模拟 + OCR 真实命中）；用户演示图 干扰1.png 的单路 Vision logo 命中（演示数据，最高 P2）。",
   "assets": {
     "743987fa61be87b69fb46fa82038a3fde34c95a69ef1349e7a4e26a864c4fdda": {
       "scenes": {
@@ -22,6 +22,25 @@
             {
               "brand": "Nike",
               "score": 0.88
+            }
+          ]
+        }
+      }
+    },
+    "930f7756b60d0fab1d04a284904e83426fc8ae1e283987919cc424bbcc4e2e55": {
+      "scenes": {
+        "0": {
+          "provider": "google_vision_logo(mock)",
+          "logos": [
+            {
+              "brand": "Nike",
+              "score": 0.86,
+              "bbox": [
+                0.16,
+                0.18,
+                0.82,
+                0.78
+              ]
             }
           ]
         }

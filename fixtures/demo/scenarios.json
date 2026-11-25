@@ -180,9 +180,9 @@
     },
     {
       "id": "recheck_pass",
-      "title": "替换后重检通过",
-      "summary": "替换素材后无 P0/P1 信号，可直接归档",
-      "media": "fixtures/eval/clean_new.png",
+      "title": "干净占位素材：复检通过",
+      "summary": "用户提供的占位海报（非真实品牌）无任何风险信号",
+      "media": "fixtures/media/v1.jpg",
       "media_type": "image",
       "expected": "无风险信号；复检通过",
       "campaign": {
@@ -196,11 +196,11 @@
     },
     {
       "id": "clean_ai",
-      "title": "干净 AI 人像素材",
-      "summary": "无水印、无商标；仅一条 AI 疑似 P2 与平台标注提示 P3",
-      "media": "fixtures/media/clean_ai.png",
+      "title": "AI 球鞋素材：商标 + 标注义务",
+      "summary": "用户提供的 AI 球鞋图：单路 logo 命中 P2 + 水印触发 P3",
+      "media": "fixtures/library/images/干扰1.png",
       "media_type": "image",
-      "expected": "P2 AI 疑似；P3 平台 AI 标注义务",
+      "expected": "P2 疑似 Nike 标识（单路 mock）；P3 AI 标注义务",
       "campaign": {
         "platform": "tiktok",
         "market": "SEA",
@@ -210,16 +210,27 @@
       "licenses": [],
       "findings": [
         {
-          "tool": "aigen",
-          "category": "ai_generated",
+          "tool": "logo",
+          "category": "logo",
           "level": "P2",
-          "confidence": 0.55,
-          "suggestion": "疑似 AI 生成内容，请按平台要求确认标注义务。",
-          "dedupe_key": "ai_generated:watermark:doubao",
+          "confidence": 0.86,
+          "suggestion": "检测到疑似 Nike 品牌标识（Vision logo 检测，1 路证据），建议核实使用授权。",
+          "dedupe_key": "logo:Nike",
           "evidence": [
             {
+              "kind": "reference",
+              "ref_record_id": "trademark:USPTO:6124779",
+              "ref_url": "https://tsdr.uspto.gov/#caseNumber=6124779",
+              "note": "Nike · USPTO 注册号 6124779 · 单路证据（演示 mock）"
+            },
+            {
+              "kind": "bbox",
+              "bbox": "0.16,0.18,0.82,0.78",
+              "note": "球鞋侧面标识区域"
+            },
+            {
               "kind": "metadata",
-              "note": "检测到「豆包AI生成」水印；C2PA 未检出。检测器概率不可作为证据。"
+              "note": "Google Vision LOGO_DETECTION mock（演示数据）；OCR 未读到 Nike 文字"
             }
           ]
         },
@@ -228,7 +239,7 @@
           "category": "policy",
           "level": "P3",
           "confidence": null,
-          "suggestion": "请对照平台 AI 内容披露条款确认标注义务。",
+          "suggestion": "水印显示「豆包AI生成」，请对照平台 AI 内容披露条款确认标注义务。",
           "dedupe_key": "policy:tiktok-ai-disclosure",
           "evidence": [
             {

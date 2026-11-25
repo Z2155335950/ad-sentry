@@ -2,6 +2,33 @@
 
 按时间倒序，「决策 / 原因 / 影响」。与 PROMPT.md 冲突时以 PROMPT 为准。
 
+## D048 延迟验收口径：预热后采样
+
+- 决策：`scripts/p8_check.py` 启动真实服务，先各跑一次图片/视频预热 OCR 与 ASR，
+  再采样图片 5 次、15s 视频 3 次，报 p50/p90 并断言 PROMPT §7 的目标。
+- 原因：模型加载是进程级一次性成本，混入采样会让 p50 失真；现场演示也是在预热后的
+  进程里连续上传。冷启动时间单独记录在 PROGRESS。
+- 影响：当前结果（图片 1.07s、视频 10.29s）是 warm 口径，不等同首次请求；
+  评测报告里的延迟包含抽取缓存，也不等同线上 SLA。
+
+## D047 用户演示素材只做占位，Nike logo 限单路 mock P2
+
+- 决策：用户提供的 AURA 海报（v1–v3、lib_001）仅作占位素材，不声称品牌归属；
+  `干扰1.png` 接入 `clean_ai` 场景，OCR 真实触发 P3 AI 标注义务，Nike logo 使用
+  单路 Vision mock，按三路投票规则最高 P2；高风险视频场景继续用合成 `sample_15s.mp4`。
+- 原因：离线没有 Google Vision，图上也没有 Nike 文字，双路/三路证据无法成立；
+  单路 mock 能演示「疑似商标」而不用编造 P0/P1。
+- 影响：演示时必须说明 logo 命中为 mock；用户素材目前是未跟踪文件，提交前需确认；
+  若后续拿到 Vision 凭证，可把 mock 替换为真实检测再评估等级。
+
+## D046 用户素材删除后先恢复再接入
+
+- 决策：发现 `fixtures/media` 三个跟踪文件被删除时，先 `git restore` 恢复，再按用户
+  要求接入新素材；新增的 `v1–v3.jpg` 与 `fixtures/library/` 不动。
+- 原因：五场景与 p8 延迟验收依赖 `sample_15s.mp4` / `risk_ad_10s.mp4` /
+  `sample_image.png`；直接重做会同时影响 mock 键、评测集与历史验收。
+- 影响：旧合成素材保留为回归基线；用户素材作为增量接入，不改已有 mock 的 sha 键。
+
 ## D045 演示回放用静态 scenarios.json 幂等写入
 
 - 决策：`fixtures/demo/scenarios.json` 保存五个场景的完整结果；`/demo/replay/{id}`

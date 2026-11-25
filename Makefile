@@ -4,7 +4,7 @@ else
 PYTHON ?= .venv/Scripts/python.exe
 endif
 
-.PHONY: p0 p1 p2 p3 p4 p5 p7 eval verify-0 verify-1 verify-2 verify-3 verify-4 verify-5 verify-6 verify-7 demo cleanup test lint run
+.PHONY: p0 p1 p2 p3 p4 p5 p7 p8 eval verify-0 verify-1 verify-2 verify-3 verify-4 verify-5 verify-6 verify-7 verify-8 demo cleanup test lint run
 
 # Phase 0 验收：上传样例图，5 秒内产出 fixture 卡片
 p0:
@@ -62,6 +62,13 @@ verify-7: p7 demo
 # 演示入口：离线回放五个场景并打印现场 URL
 demo:
 	$(PYTHON) scripts/demo_check.py
+
+# Phase 8 验收：全量单测 + 延迟达标 + 干净集误报 + 五场景彩排
+p8:
+	$(PYTHON) -m pytest -q
+	$(PYTHON) scripts/p8_check.py
+
+verify-8: p8
 
 # 手动清理一次过期素材
 cleanup:

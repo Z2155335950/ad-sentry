@@ -22,6 +22,8 @@
   `make eval` 报告：11 条用例（干净 9 条），完整链路 P0/P1 召回 4/4、干净集误报 0/9。
 - **Phase 7 ✅** 演示模式：五场景离线回放、按素材键控的 demo 缓存、TTL 清理
   （素材 / 抽取产物 / 孤儿授权文件）、Docker Compose（app + worker）。
+- **Phase 8 ✅（离线）** 延迟验收：图片 p50 1.07s、15s 视频 p50 10.29s；干净集误报 0/9；
+  用户占位素材接入演示；实时凭证与 Docker 验证待有条件的环境。
 
 进展与未完成项见 [PROGRESS.md](PROGRESS.md)，决策记录见 [DECISIONS.md](DECISIONS.md)。
 
@@ -59,6 +61,7 @@ python -m uvicorn app.main:app --reload --port 8000
 | `make verify-5` | 阶段验收入口（Phase 5：飞书单测 + `p5_check.py`） |
 | `make verify-6` | 阶段验收入口（Phase 6：等价 `make eval`） |
 | `make verify-7` | 阶段验收入口（Phase 7：清理/演示单测 + 五场景离线回放） |
+| `make verify-8` | 阶段验收入口（Phase 8：全量单测 + 延迟/误报/彩排） |
 | `make p0` | 启动临时服务，上传样例图，断言 5 秒内产出 fixture 卡片 |
 | `make p1` | 上传 15s 视频，断言关键帧、OCR 文本、ASR 转写 JSON |
 | `make p2` | 上传植入素材，断言图搜 P0 / 名人 P1 / BGM P2；干净素材零 P0/P1 |
@@ -67,6 +70,7 @@ python -m uvicorn app.main:app --reload --port 8000
 | `make p5` | 飞书事件 mock 回环：验签、幂等、回执、卡片、复核链接可打开 |
 | `make eval` | 跑评测集，生成 `eval_report.md` / `eval_report.json` 与消融表 |
 | `make demo` | 离线回放五个演示场景，打印现场 URL 与预期结果 |
+| `make p8` | 跑全量单测，再测图片/视频 p50、干净集误报与五场景彩排 |
 | `make cleanup` | 手动执行一次 TTL 清理 |
 | `make test` | pytest 全量单测 |
 | `make lint` | ruff 检查 |
@@ -183,7 +187,8 @@ Laplacian 清晰度优先）→ `ocr`（逐帧）。
   `scripts/make_demo_cache.py` 从现有 flat mock 生成该目录。
 - **回放**：`GET /demo` 列出五个场景，`GET /demo/replay/{id}` 打开结果页，
   加 `?format=json` 取结构化结果。场景：高风险视频全链路、证据链与授权到期、
-  替换后重检通过、干净 AI 人像、历史素材批量巡检。
+  干净占位素材（用户提供，复检通过）、AI 球鞋素材（真实 P3 + 单路 mock logo P2）、
+  历史素材批量巡检。
   回放数据幂等写入数据库，卡片与复核页直接可用；`DEMO_MODE=false` 时接口返回 404。
 - **现场**：`DEMO_MODE=true make run`（或写进 `.env`）；`make demo` 会离线验证五个场景
   并打印 `PUBLIC_BASE_URL` 下的现场 URL。
@@ -192,6 +197,19 @@ Laplacian 清晰度优先）→ `ocr`（逐帧）。
   素材文件、`extracted/<sha256>/` 与未被引用的旧授权文件；`fixtures/` 演示素材不删。
 - **部署**：`docker compose up --build`。app 服务设 `WORKER_IN_APP=false`，worker 服务
   运行 `python -m app.workers.run`，两者共用 `./data`。
+
+## 延迟与彩排（Phase 8）
+
+`make verify-8` 会启动真实服务，预热 OCR/ASR 后采样：图片 5 次、15s 视频 3 次，
+再跑评测与五场景回放。当前结果：
+
+- 图片 p50 **1.04s** / p90 1.17s（目标 <20s）；
+- 15s 视频 p50 **9.71s** / p90 9.88s（目标 <60s）；
+- 干净集 P0/P1 误报 **0/9**；植入集 P0/P1 命中 4/4。
+
+彩排顺序建议：先 `make demo` 离线过一遍，再 `DEMO_MODE=true make run`，按
+`/demo` 列出的顺序打开五个场景。用户素材中 AURA 海报仅作占位；Nike 球鞋图的
+logo 命中是单路 mock（演示数据，最高 P2）。
 
 ## 配置
 
@@ -221,6 +239,11 @@ Laplacian 清晰度优先）→ `ocr`（逐帧）。
   纯 VLM 基线是缓存结果，不是实时调用。
 - ASR 首次运行需要网络下载模型；离线环境需提前准备 `ASR_MODEL_DIR`。
 - 本机无 Docker，`Dockerfile` / `docker-compose.yml` 未实际构建运行；只做了静态校验。
+- 录屏未产出：本环境不能录屏；`make demo` 与 `/demo` 提供可复现的彩排路径。
+- 用户提供的 AURA 海报仅作演示占位，不对外声称品牌归属；`干扰1.png` 的 Nike logo
+  命中是单路 mock（演示数据，最高 P2），真实 Vision 结果需凭证到位后复核。
+- 实时凭证：Feishu 与 ACRCloud 已配置；Anthropic、Google Vision、AWS Rekognition
+  仍缺失，无法完成真实 API 对照。
 - `batch_scan` 是预置结果的汇总回放，不是对历史素材库重跑流水线；演示素材无 TTL。
 - app 与 worker 共用 SQLite（WAL），仅支持单机；多 worker 需把任务认领改为条件更新。
 - Windows 上 make 通过 winget 安装（ezwinports.make 4.4.1）；未刷新 PATH 的 shell 用

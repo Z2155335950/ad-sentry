@@ -30,8 +30,8 @@ from fastapi.testclient import TestClient  # noqa: E402
 SCENARIOS = [
     ("risk_video", "高风险视频全链路"),
     ("license_expiry", "证据链与授权到期"),
-    ("recheck_pass", "替换后重检通过"),
-    ("clean_ai", "干净 AI 人像素材"),
+    ("recheck_pass", "干净占位素材"),
+    ("clean_ai", "AI 球鞋素材"),
     ("batch_scan", "历史素材批量巡检"),
 ]
 

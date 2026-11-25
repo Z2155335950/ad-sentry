@@ -12,6 +12,38 @@
 - `fixtures/media/risk_ad_10s.mp4`（合成，Phase 2）：10s 三分镜，植入图库照片 / 合成人像 /
   合成旋律；配套 mock 在 `fixtures/cache/`，见 [fixtures/README.md](fixtures/README.md)。
 
+## Phase 8（2026-11-25）✅（离线部分）
+
+**验收**：`make verify-8`（全量 pytest + `scripts/p8_check.py`）
+
+- 结果：通过。图片 p50 **1.04s** / p90 1.17s（5 次，目标 <20s）；
+  15s 视频 p50 **9.71s** / p90 9.88s（3 次，目标 <60s）；
+  干净集 P0/P1 误报 **0/9**，植入集 P0/P1 命中 4/4；五场景离线回放通过。
+- `pytest -q`：**140 passed**；ruff 全绿。
+- 用户素材接入：`v1.jpg` 作为干净占位素材（零信号）；`干扰1.png` 接入
+  `clean_ai` 场景，真实 OCR 触发 P3 AI 标注义务，Nike logo 使用单路 Vision mock，
+  按规则最高 **P2**（mock 在 fixture 中明确标注）。合成 15s 视频保留用于高风险全链路。
+
+**完成项**
+
+- `scripts/p8_check.py`：启动真实服务，预热 OCR/ASR 后测图片 5 次、15s 视频 3 次，
+  计算 p50/p90 并断言 SLA；随后跑评测与五场景回放，最后输出凭证/Docker 就绪状态。
+- 延迟口径：预热模型后再采样，包含抽取层与工具层；mock 工具不产生外部成本。
+- 误报：完整链路干净集 0/9，报告随 `make eval` 生成。
+- 彩排：五个场景顺序与 URL 由 `make demo` 打印；用户占位素材已接入两个场景。
+- Makefile 增加 `p8` / `verify-8`。
+
+**未完成 / 阻塞**
+
+- **实时凭证未验证**：本机已配置 Feishu 与 ACRCloud；Anthropic、Google Vision、
+  AWS Rekognition 仍缺失，无法做真实 API 对照。
+- **Docker 未验证**：本机没有 Docker，镜像与 compose 未实际构建运行。
+- **录屏未产出**：本环境不能录屏；`make demo` 提供可复现的彩排路径与现场 URL。
+- **用户素材尚未提交**：`v1.jpg`、`干扰1.png` 等是未跟踪文件；确认后可随 Phase 8 一起提交。
+- 用户素材是演示占位，不代表真实客户品牌；Nike logo 命中为 mock，演示时需说明。
+
+**下一步**：决赛彩排与录屏；有凭证/ Docker 的环境重跑 `make verify-8`，把阻塞项转为已验证。
+
 ## Phase 7（2026-11-25）✅
 
 **验收**：`make verify-7`（清理/演示单测 → `scripts/p7_check.py` → `scripts/demo_check.py`）

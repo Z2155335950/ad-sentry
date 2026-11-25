@@ -38,6 +38,16 @@ Phase 3 的 `logo.json` 由 `scripts/make_p3_fixtures.py` 生成（`make p3` 会
 
 凭证齐全后用 `TOOLS_MODE=auto` 切换真实调用；mock 文件缺失时工具返回空，不编造信号。
 
+## 用户提供的演示素材（Phase 8）
+
+| 文件 | 用途 | 说明 |
+| --- | --- | --- |
+| `media/v1.jpg` | 干净占位素材（`recheck_pass` 场景） | AURA 海报，仅作占位，不对外声称品牌归属；离线链路零信号 |
+| `media/v2.jpg` / `v3.jpg`、`library/images/lib_001.jpg` | 备选占位图 | 同一组海报的变体，当前未接入场景 |
+| `library/images/干扰1.png` | AI 球鞋风险样例（`clean_ai` 场景） | 带「豆包AI生成」水印；OCR 真实触发 P3 AI 标注义务；Nike logo 为 **单路 mock**（`fixtures/cache/logo.json` 已标注），按规则最高 P2 |
+
+这些图片用于路演演示占位；其中 Nike 标识的 Vision 命中是演示数据，不是真实 API 结果。
+
 ## 演示回放（Phase 7）
 
 `fixtures/demo/scenarios.json` 保存五个路演场景的完整结果（findings / 证据 / Campaign /

@@ -20,8 +20,8 @@ def test_demo_index_lists_five_scenarios(monkeypatch):
         titles = (
             "高风险视频全链路",
             "证据链与授权到期",
-            "替换后重检通过",
-            "干净 AI 人像素材",
+            "干净占位素材",
+            "AI 球鞋素材",
             "历史素材批量巡检",
         )
         for title in titles:
