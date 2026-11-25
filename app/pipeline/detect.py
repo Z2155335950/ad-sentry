@@ -14,7 +14,7 @@ from pathlib import Path
 from app.config import settings
 from app.models import Asset, MediaType
 from app.pipeline import extract, ffmpeg, fuse
-from app.tools import base, celebrity, music, websearch
+from app.tools import base, celebrity, logo, music, policy, trademark, websearch
 from app.tools import signals as signal_builder
 
 logger = logging.getLogger(__name__)
@@ -81,6 +81,72 @@ def _run_celebrity(
     return signals
 
 
+def _ocr_brand_hits(frame: dict, catalog: trademark.Catalog) -> list[dict]:
+    """OCR 行 → 词表品牌命中（给 logo 投票当佐证）；通用词与竞品词不算 logo。"""
+    hits: list[dict] = []
+    for line in frame.get("ocr") or []:
+        text = line.get("text") or ""
+        if not text:
+            continue
+        for match in trademark.match_text(text, catalog=catalog):
+            if match.brand.tier in ("generic", "competitor"):
+                continue
+            hits.append(
+                {
+                    "brand": match.brand.mark,
+                    "bbox": line.get("bbox"),
+                    "score": line.get("confidence"),
+                }
+            )
+    return hits
+
+
+def _run_logo(
+    asset: Asset,
+    frames: list[dict],
+    runtime: base.ToolRuntime,
+    catalog: trademark.Catalog,
+) -> list[dict]:
+    signals: list[dict] = []
+    for frame in select_frames(frames, settings.tool_logo_frames):
+        result = logo.detect(
+            runtime,
+            extract.frame_file(asset, frame),
+            asset_sha256=asset.sha256,
+            scene_index=int(frame.get("scene_index") or 0),
+            timestamp=float(frame.get("timestamp") or 0.0),
+        )
+        data = result.data if result.usable else {}
+        signals.extend(
+            logo.signals(
+                data.get("logos") or [],
+                data.get("clip") or [],
+                _ocr_brand_hits(frame, catalog),
+                frame=frame,
+                catalog=catalog,
+            )
+        )
+    return signals
+
+
+def _run_trademark(
+    extraction: dict, catalog: trademark.Catalog
+) -> list[dict]:
+    transcript = (extraction.get("asr") or {}).get("text") or ""
+    return trademark.trademark_signals(
+        extraction.get("frames") or [], transcript, catalog=catalog
+    )
+
+
+def _run_policy(extraction: dict) -> list[dict]:
+    ocr_text = (extraction.get("ocr") or {}).get("text") or ""
+    asr_text = (extraction.get("asr") or {}).get("text") or ""
+    query = " ".join(part for part in (ocr_text, asr_text) if part).strip()
+    if not query:
+        return []
+    return policy.policy_signals(query)
+
+
 def _ensure_audio(asset: Asset, extraction: dict) -> Path | None:
     media = extraction.get("media") or {}
     if asset.media_type != MediaType.video.value or not media.get("has_audio"):
@@ -116,6 +182,7 @@ def run(
     if not settings.tools_enabled:
         return []
     frames = extraction.get("frames") or []
+    catalog = trademark.load_catalog()
     signals: list[dict] = []
 
     _notify(on_stage, "image_search")
@@ -124,7 +191,16 @@ def run(
     _notify(on_stage, "celebrity")
     signals.extend(_run_celebrity(asset, frames, runtime))
 
+    _notify(on_stage, "logo")
+    signals.extend(_run_logo(asset, frames, runtime, catalog))
+
+    _notify(on_stage, "trademark")
+    signals.extend(_run_trademark(extraction, catalog))
+
     _notify(on_stage, "bgm")
     signals.extend(_run_bgm(asset, extraction, runtime))
+
+    _notify(on_stage, "policy")
+    signals.extend(_run_policy(extraction))
 
     return fuse.dedupe_signals(signals)

@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "meta": {
+    "purpose": "竞品词表：与商标词表分开维护（PROMPT §8.6）。默认不启用，需按客户投放配置传入 enabled_for。",
+    "level": "命中只给 P2「竞品词提示」，不升 P0/P1。",
+    "size_note": "演示样例；正式使用按客户与品类维护。"
+  },
+  "enabled_for": [],
+  "terms": [
+    {
+      "term": "adidas",
+      "aliases": ["阿迪达斯", "Three Stripes"],
+      "competitor_of": "Nike",
+      "sector": "apparel"
+    },
+    {
+      "term": "Puma",
+      "aliases": ["彪马"],
+      "competitor_of": "Nike",
+      "sector": "apparel"
+    },
+    {
+      "term": "Under Armour",
+      "aliases": ["安德玛", "UA"],
+      "competitor_of": "Nike",
+      "sector": "apparel"
+    },
+    {
+      "term": "New Balance",
+      "aliases": ["新百伦", "NB"],
+      "competitor_of": "Nike",
+      "sector": "apparel"
+    }
+  ]
+}

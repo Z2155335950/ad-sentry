@@ -164,7 +164,7 @@ def _live_search(image_path: Path) -> dict:
             }
         ]
     }
-    url, headers = _vision_auth()
+    url, headers = vision_auth()
     response = httpx.post(
         url,
         json=body,
@@ -175,7 +175,7 @@ def _live_search(image_path: Path) -> dict:
     return normalize_vision_response(response.json())
 
 
-def _vision_auth() -> tuple[str, dict]:
+def vision_auth() -> tuple[str, dict]:
     if settings.google_vision_api_key:
         return f"{VISION_URL}?key={settings.google_vision_api_key}", {}
     if not settings.google_application_credentials:

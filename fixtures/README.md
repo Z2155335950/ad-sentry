@@ -17,6 +17,10 @@ Phase 2 的外部工具默认走 mock，按**素材 sha256 + 分镜/窗口序号
 | `image_search.json` | Google Vision WEB_DETECTION | 分镜 0：图库 full match + 博客 visually similar |
 | `celebrity.json` | AWS Rekognition | 分镜 1：示例公众人物（合成人像，不指向真人） |
 | `music.json` | ACRCloud | 窗口 0：示例曲目；窗口 1–2：无匹配 |
+| `logo.json` | Google Vision LOGO_DETECTION + CLIP | `sample_15s.mp4` 分镜 1：NIKE 文字（Vision + CLIP 两路 mock，OCR 为真实命中） |
+
+Phase 3 的 `logo.json` 由 `scripts/make_p3_fixtures.py` 生成（`make p3` 会自动补齐）。
+商标词表与政策条款是静态数据，位于 `data/watchlists/`，不按素材键控。
 
 凭证齐全后用 `TOOLS_MODE=auto` 切换真实调用；mock 文件缺失时工具返回空，不编造信号。
 

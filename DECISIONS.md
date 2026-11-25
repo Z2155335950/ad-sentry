@@ -2,6 +2,48 @@
 
 按时间倒序，「决策 / 原因 / 影响」。与 PROMPT.md 冲突时以 PROMPT 为准。
 
+## D025 政策 RAG 只做提示级，阈值可调
+
+- 决策：BM25Plus 检索 + `POLICY_MIN_SCORE=8.0`；命中只产出 P3，并强制附 `clause_id`、
+  原文摘录与 `effective_date`；无达标条款不产出。
+- 原因：没有 Campaign（平台 / 地域 / 品类）时无法判断政策后果严重度，
+  PROMPT §11 要求缺投放上下文不得猜；P3 只做「请对照条款」的提示。
+- 影响：Campaign 接入（Phase 4）后可把政策信号升级为 P2/P1；阈值与 top-k 通过 env 调整，
+  修改语料后需重跑 `pytest tests/test_policy.py` 校准。
+
+## D024 logo 三路投票：OCR 只作佐证
+
+- 决策：logo 信号至少需要 Vision / CLIP / VLM 中一路命中；OCR 文本命中只累加票数，
+  单独命中交给商标词模块（`trademark_text`）。≥2 路且有注册信息 → P0；
+  ≥2 路无注册 → P1；单路或词表外品牌 → P2。
+- 原因：PROMPT §8.3 要求「至少两路一致才 ≥P1」「库内必须有注册信息才允许 P0」；
+  把 OCR 当 logo 会与商标词重复计分。
+- 影响：open_clip 未安装时，demo 用 mock 提供 CLIP 路线；真实环境需品牌 logo 图与
+  `logo_vectors.npz` 才能启用向量路。
+
+## D023 商标词短词只精确匹配
+
+- 决策：拉丁词按词边界精确匹配；只有长度 ≥ `TRADEMARK_FUZZY_MIN_LEN`（默认 6）才允许
+  1 字符差异；中文别名 ≥2 字精确包含。
+- 原因：PROMPT §8.6 允许模糊匹配，同时验收要求「bike 不能命中 Nike」——
+  四字母短词做 1-edit 模糊必然误报，所以对短词收紧。
+- 影响：调低该阈值会直接引入 Nike/bike 类误报；新增短品牌名列时默认只做精确匹配。
+
+## D022 词表先交付可解释的演示子集
+
+- 决策：`data/watchlists/brands.json` 先交付 56 条（含 4 个通用词），字段与 PROMPT §8.6
+  一致；仅 Nike 的 `reg_no` 经公开聚合站核对，其余留空（只能 P2）。
+- 原因：10 天窗口内无法逐条核验 ≥500 条注册信息；编造注册号会破坏证据链的可信度。
+- 影响：正式导入核验词表后逻辑不变；`reg_no=null` 的品牌会在卡片上注明「无注册信息」。
+
+## D021 Evidence.bbox 统一存字符串
+
+- 决策：OCR / Vision 产生的列表型 bbox 在写证据前统一转成 `x1,y1,x2,y2` 字符串；
+  归一化坐标保留 4 位小数。
+- 原因：`Evidence.bbox` 在数据模型里是字符串列，Phase 2 的名人 bbox 已是字符串；
+  混用列表会让写入 SQLite 时报 `type 'list' is not supported`（本次验收实际踩到）。
+- 影响：新增工具一律调用 `trademark.format_bbox`；复核页按逗号解析。
+
 ## D020 未识别 BGM 只在有明确 no_match 时产出
 
 - 决策：live 模式下 ACRCloud `code=1001` 记为 `no_match`；只有所有窗口都明确 no_match

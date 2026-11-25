@@ -89,6 +89,17 @@ class Settings(BaseSettings):
     music_window_seconds: float = 10.0
     celebrity_min_confidence: float = 0.80
 
+    # 词表与政策 RAG（Phase 3）
+    watchlists_dir: Path = Path("./data/watchlists")
+    tool_logo_frames: int = 3
+    logo_clip_top_k: int = 5
+    logo_clip_min_score: float = 0.80
+    # 拉丁词模糊匹配的最小长度：短词（bike/nike）只允许精确匹配，避免误报
+    trademark_fuzzy_min_len: int = 6
+    policy_top_k: int = 3
+    # 自动产出提示的 BM25 阈值；直接检索（评测/演示查询）可显式放宽
+    policy_min_score: float = 8.0
+
 
 @lru_cache
 def get_settings() -> Settings:

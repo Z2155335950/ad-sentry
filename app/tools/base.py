@@ -117,7 +117,7 @@ def resolve_mode(tool: str) -> str:
 
 
 def _configured(tool: str) -> bool:
-    if tool == "image_search":
+    if tool in ("image_search", "logo"):
         return bool(settings.google_vision_api_key or settings.google_application_credentials)
     if tool == "music":
         return bool(

@@ -12,6 +12,54 @@
 - `fixtures/media/risk_ad_10s.mp4`（合成，Phase 2）：10s 三分镜，植入图库照片 / 合成人像 /
   合成旋律；配套 mock 在 `fixtures/cache/`，见 [fixtures/README.md](fixtures/README.md)。
 
+## Phase 3（2026-11-25）✅
+
+**验收**：`make verify-3`（先跑三个模块单测，再跑 `python scripts/p3_check.py`）
+
+- 结果：通过。`sample_15s.mp4` 上传到完成 **8.13s**，命中
+  `logo=P0`（Vision + CLIP + OCR 三路证据，注册号 USPTO 6124779）、
+  `trademark_text=P1`（OCR 命中 NIKE，附注册号与来源链接）、
+  `policy=P3`（Meta 第三方商标条款）；卡片标题「P0 · 高风险信号 | 3 条信号」。
+- 干净素材 `clean_ai.png`：**无 P0/P1、无 logo / 商标词**；仅 1 条 P3
+  （水印「豆包AI生成」触发 TikTok/Meta AI 标注条款提示），符合「干净素材不误报P0/P1」。
+- `pytest -q`：**80 passed**；ruff 全绿；`make p0/p1/p2` 回归通过。
+
+**完成项**
+
+- 数据层 `data/watchlists/`：
+  - `brands.json`：56 条品牌（含 4 个通用词）+ 别名 / 注册号 / tier / sector；
+    Nike 注册号经公开聚合站核对，其余标记为待核验。
+  - `competitor_terms.json`：竞品词表，默认不启用，需按客户配置。
+  - `policy_clauses.yaml`：TikTok / Meta 24 条政策条款（id 唯一校验，带生效日期与官方 URL）。
+- 商标词（`app/tools/trademark.py`）：全半角/大小写/™® 归一；拉丁词边界精确匹配；
+  ≥6 字符允许 1 字符差异；中文别名 n-gram 精确匹配；通用词 P3、竞品词 P2、无注册信息 P2；
+  证据含注册号、来源链接、文字 bbox 与帧时间戳。
+- 政策 RAG（`app/tools/policy.py`）：BM25Plus（rank_bm25）检索，中文查询靠 summary/tags 对齐；
+  阈值 `POLICY_MIN_SCORE=8.0`；输出前校验 clause_id；无达标条款不产出；信号固定 P3 并引用原文与生效日期。
+- logo（`app/tools/logo.py`）：Vision `LOGO_DETECTION` 适配、CLIP 余弦 top-k、OCR 文本佐证三路投票；
+  ≥2 路 + 注册信息 → P0，≥2 路无注册 → P1，单路 / 词表外 → P2；只有 OCR 命中不产出 logo 信号。
+  open_clip 作为可选依赖（`.[clip]`），未安装时该路自动跳过。
+- 编排：`pipeline/detect.py` 增加 logo → trademark → policy 三个确定性阶段；
+  单工具失败仍只丢该信号。
+- 验收与测试：`scripts/make_p3_fixtures.py` 生成 `fixtures/cache/logo.json`；
+  `scripts/p3_check.py`、Makefile `p3`/`verify-3`、31 个新增单测（三个模块各一组）。
+
+**未完成 / 已知限制**
+
+- 词表为演示子集（56 条，PROMPT 要求 ≥500）；仅 Nike 的注册号经核对，其余 `reg_no=null`，
+  因此只能产出 P2。正式使用前需导入核验过的词表。
+- 政策条款为人工整理的演示摘录，`effective_date` 为采集时页面标注/近似值；
+  对外引用前须逐条回官方页面核对。
+- 商标词的 P0 需要「high-tier + 注册信息 + 同品类投放上下文」，Campaign 在 Phase 4 才接入，
+  当前最高 P1。
+- CLIP 向量库未随仓库分发（需品牌 logo 图片与 `.[clip]` 权重）；未安装时 logo 依赖
+  Vision live 或 mock + OCR 佐证。
+- VLM 复核（候选品牌内回答）留到 Phase 6 Verifier；当前 mock 不调用 LLM。
+- 政策信号统一 P3；与平台/地区上下文联动的定级在 Campaign 接入后再做。
+
+**下一步**：Phase 4 —— 授权台账 + 复核页增强，
+验收 `make p4`：三份授权书状态正确（有效 / 过期 / 地域不符），复核动作落库。
+
 ## Phase 2（2026-11-25）✅
 
 **验收**：`make verify-2`（等价 `make p2` / `python scripts/p2_check.py`）

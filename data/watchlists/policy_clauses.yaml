@@ -1,0 +1,224 @@
+schema: 1
+meta:
+  purpose: "平台政策 RAG 语料（PROMPT §8.7）：TikTok / Meta 投放政策条款，BM25 top-k 检索后必须引用原文与生效日期。"
+  collected_at: "2026-11-25"
+  verification: "条款为人工整理的演示摘录，url 指向官方政策页；effective_date 为采集时页面标注/近似值。对外引用或对外发布前，须逐条回官方页面核对原文与日期。"
+  platforms: [TikTok, Meta]
+  id_rule: "clause_id 全局唯一；输出前校验存在。"
+
+clauses:
+  - id: tiktok-ip-infringement
+    platform: TikTok
+    section: "Intellectual Property"
+    text: "Ads must not infringe or violate the intellectual property rights of others, including copyright, trademark, trade secret, and patent rights."
+    summary_zh: "广告不得侵犯他人知识产权，包括版权、商标、商业秘密与专利。"
+    tags: ["知识产权", "版权", "商标", "侵权投诉"]
+    effective_date: 2025-01-01
+    url: "https://ads.tiktok.com/help/article/tiktok-advertising-policies"
+
+  - id: tiktok-trademark-authorization
+    platform: TikTok
+    section: "Intellectual Property > Third-Party Trademarks"
+    text: "Advertisers may not use third-party brand names, logos, or trademarks in a way that is likely to confuse viewers about affiliation or endorsement, and must hold authorization where the law or the rights holder requires it."
+    summary_zh: "未经授权不得使用第三方品牌名、logo 或商标，不得让用户误以为存在联名或背书关系。"
+    tags: ["商标", "品牌", "logo", "授权", "联名"]
+    effective_date: 2025-01-01
+    url: "https://ads.tiktok.com/help/article/tiktok-advertising-policies"
+
+  - id: tiktok-music-licensing
+    platform: TikTok
+    section: "Intellectual Property > Music"
+    text: "Ads must use music that the advertiser is licensed to use for commercial purposes; tracks from the Commercial Music Library are cleared for advertising, other tracks require the advertiser's own licenses."
+    summary_zh: "广告音乐需具备商用授权；商用音乐库曲目可用于广告，其他曲目需广告主自行取得授权。"
+    tags: ["背景音乐", "BGM", "音乐授权", "商用音乐库"]
+    effective_date: 2025-01-01
+    url: "https://ads.tiktok.com/help/article/tiktok-advertising-policies"
+
+  - id: tiktok-public-figure
+    platform: TikTok
+    section: "Content > Public Figures and Likeness"
+    text: "Ads may not feature a public figure's image, likeness, or voice without the permission required to depict that person, and may not imply endorsement without authorization."
+    summary_zh: "未经许可不得在广告中出现公众人物的形象、肖像或声音，也不得暗示其背书。"
+    tags: ["公众人物", "肖像权", "名人", "背书", "AI换脸"]
+    effective_date: 2025-01-01
+    url: "https://ads.tiktok.com/help/article/tiktok-advertising-policies"
+
+  - id: tiktok-ai-disclosure
+    platform: TikTok
+    section: "Content > AI-Generated Content"
+    text: "Advertisers must disclose realistic AI-generated or digitally altered content where required, including synthetic scenes, voices, or persons presented as real."
+    summary_zh: "逼真的 AI 生成或深度合成内容（合成场景、声音、人物）需按要求披露或标注。"
+    tags: ["AI生成", "AI标注", "深度合成", "透明度", "数字人"]
+    effective_date: 2025-09-01
+    url: "https://ads.tiktok.com/help/article/tiktok-advertising-policies"
+
+  - id: tiktok-misleading-claims
+    platform: TikTok
+    section: "Content > Misleading Claims"
+    text: "Ads must not contain deceptive or unsubstantiated claims about a product, service, or business, including claims about results that cannot be reasonably achieved."
+    summary_zh: "广告不得包含欺骗性或无依据的宣称，包括无法合理实现的效果承诺。"
+    tags: ["虚假宣传", "效果承诺", "误导", "夸大"]
+    effective_date: 2025-01-01
+    url: "https://ads.tiktok.com/help/article/tiktok-advertising-policies"
+
+  - id: tiktok-counterfeit
+    platform: TikTok
+    section: "Prohibited Products > Counterfeit Goods"
+    text: "Ads must not promote counterfeit products or products that infringe intellectual property rights, including replicas presented as authentic goods."
+    summary_zh: "禁止投放假冒商品或侵犯知识产权的商品，包括以正品名义销售的高仿。"
+    tags: ["假冒", "高仿", "仿品", "知识产权"]
+    effective_date: 2025-01-01
+    url: "https://ads.tiktok.com/help/article/tiktok-advertising-policies"
+
+  - id: tiktok-health-claims
+    platform: TikTok
+    section: "Restricted Industries > Healthcare and Wellness"
+    text: "Ads for health, wellness, or medical products must not make unsupported claims of diagnosis, cure, or guaranteed outcomes."
+    summary_zh: "健康与医疗类广告不得作出无依据的诊断、治愈或保证效果宣称。"
+    tags: ["健康", "医疗", "保健", "功效宣称"]
+    effective_date: 2025-01-01
+    url: "https://ads.tiktok.com/help/article/tiktok-advertising-policies"
+
+  - id: tiktok-alcohol
+    platform: TikTok
+    section: "Restricted Industries > Alcohol"
+    text: "Alcohol advertising is restricted and must comply with targeting, disclaimer, and market-specific requirements; it must not target minors."
+    summary_zh: "酒精类广告受限，须遵守定向、免责声明与地区要求，不得面向未成年人。"
+    tags: ["酒精", "酒类", "受限行业", "未成年人"]
+    effective_date: 2025-01-01
+    url: "https://ads.tiktok.com/help/article/tiktok-advertising-policies"
+
+  - id: tiktok-gambling
+    platform: TikTok
+    section: "Restricted Industries > Gambling"
+    text: "Gambling and betting ads are restricted to licensed operators and permitted markets, and must not target minors."
+    summary_zh: "博彩类广告仅限持牌主体与允许市场，不得面向未成年人。"
+    tags: ["博彩", "赌博", "受限行业", "持牌"]
+    effective_date: 2025-01-01
+    url: "https://ads.tiktok.com/help/article/tiktok-advertising-policies"
+
+  - id: tiktok-minors
+    platform: TikTok
+    section: "Content > Minors"
+    text: "Ads must not exploit or target minors inappropriately, and must not encourage minors to purchase or share personal information."
+    summary_zh: "广告不得利用或不当定向未成年人，不得诱导其购买或提供个人信息。"
+    tags: ["未成年人", "儿童", "个人信息"]
+    effective_date: 2025-01-01
+    url: "https://ads.tiktok.com/help/article/tiktok-advertising-policies"
+
+  - id: tiktok-fake-urgency
+    platform: TikTok
+    section: "Content > Pressure Tactics"
+    text: "Ads must not use false or misleading scarcity, countdowns, or urgency to pressure users into immediate action."
+    summary_zh: "不得用虚假的限量、倒计时或紧迫感施压用户立即下单。"
+    tags: ["虚假紧迫", "限量", "倒计时", "促销"]
+    effective_date: 2025-01-01
+    url: "https://ads.tiktok.com/help/article/tiktok-advertising-policies"
+
+  - id: meta-ip-infringement
+    platform: Meta
+    section: "Objectionable Content > Intellectual Property"
+    text: "Ads must not constitute or facilitate the infringement or violation of intellectual property rights, including copyright and trademark rights."
+    summary_zh: "广告不得构成或促成对知识产权的侵犯，包括版权与商标权。"
+    tags: ["知识产权", "版权", "商标", "侵权投诉"]
+    effective_date: 2025-01-01
+    url: "https://transparency.meta.com/policies/ad-standards/"
+
+  - id: meta-trademark-use
+    platform: Meta
+    section: "Objectionable Content > Third-Party Trademarks"
+    text: "Ads must not use another party's trademarks, brand names, or logos in a way that misleads people about the advertiser's relationship with that party."
+    summary_zh: "不得以误导方式使用他方商标、品牌名或 logo，暗示不存在的合作关系。"
+    tags: ["商标", "品牌", "logo", "联名", "授权"]
+    effective_date: 2025-01-01
+    url: "https://transparency.meta.com/policies/ad-standards/"
+
+  - id: meta-music-licensing
+    platform: Meta
+    section: "Objectionable Content > Music"
+    text: "Advertisers must hold the necessary rights or licenses for any music used in their ads, including for advertising use rather than personal use."
+    summary_zh: "广告中的音乐需具备广告用途所需的权利或授权，个人使用授权不覆盖广告投放。"
+    tags: ["背景音乐", "BGM", "音乐授权", "商用"]
+    effective_date: 2025-01-01
+    url: "https://transparency.meta.com/policies/ad-standards/"
+
+  - id: meta-personal-attributes
+    platform: Meta
+    section: "Objectionable Content > Personal Attributes and Public Figures"
+    text: "Ads must not imply knowledge of personal attributes, and may not use a public figure's likeness or voice to imply endorsement without authorization."
+    summary_zh: "广告不得暗示知晓用户个人属性；未经授权不得使用公众人物形象或声音暗示背书。"
+    tags: ["公众人物", "肖像权", "个人属性", "背书", "AI换脸"]
+    effective_date: 2025-01-01
+    url: "https://transparency.meta.com/policies/ad-standards/"
+
+  - id: meta-ai-disclosure
+    platform: Meta
+    section: "Objectionable Content > AI-Generated Content"
+    text: "Ads that contain realistic AI-generated or digitally altered content may need to disclose the use of AI where required by the platform or applicable law."
+    summary_zh: "逼真的 AI 生成或数字修改内容，需按平台或适用法律要求披露 AI 使用情况。"
+    tags: ["AI生成", "AI标注", "深度合成", "透明度", "数字人"]
+    effective_date: 2025-09-01
+    url: "https://transparency.meta.com/policies/ad-standards/"
+
+  - id: meta-misleading-claims
+    platform: Meta
+    section: "Deceptive Content > Misrepresentation"
+    text: "Ads must not contain deceptive, false, or misleading claims, including claims about outcomes, endorsements, or the nature of a product."
+    summary_zh: "广告不得包含欺骗、虚假或误导性宣称，包括效果、背书与产品性质。"
+    tags: ["虚假宣传", "误导", "效果承诺", "背书"]
+    effective_date: 2025-01-01
+    url: "https://transparency.meta.com/policies/ad-standards/"
+
+  - id: meta-unrealistic-outcomes
+    platform: Meta
+    section: "Restricted Content > Unrealistic Outcomes"
+    text: "Health, fitness, and weight-loss ads must not promise unrealistic outcomes or depict results that cannot be typically achieved."
+    summary_zh: "健康、健身与减重广告不得承诺不现实的效果或展示通常无法达到的对比结果。"
+    tags: ["减重", "健身", "效果对比", "不现实效果", "健康"]
+    effective_date: 2025-01-01
+    url: "https://transparency.meta.com/policies/ad-standards/"
+
+  - id: meta-counterfeit
+    platform: Meta
+    section: "Restricted Content > Counterfeit Goods"
+    text: "Ads must not promote counterfeit goods or unauthorized replicas of branded products."
+    summary_zh: "禁止推广假冒商品或未经授权的品牌仿制品。"
+    tags: ["假冒", "高仿", "仿品", "品牌"]
+    effective_date: 2025-01-01
+    url: "https://transparency.meta.com/policies/ad-standards/"
+
+  - id: meta-alcohol
+    platform: Meta
+    section: "Restricted Content > Alcohol"
+    text: "Alcohol ads must comply with local law and platform targeting rules, and must not be directed to minors."
+    summary_zh: "酒精广告须遵守当地法律与平台定向规则，不得面向未成年人。"
+    tags: ["酒精", "酒类", "受限内容", "未成年人"]
+    effective_date: 2025-01-01
+    url: "https://transparency.meta.com/policies/ad-standards/"
+
+  - id: meta-gambling
+    platform: Meta
+    section: "Restricted Content > Gambling and Gaming"
+    text: "Gambling ads require authorization and may be limited by market; ads must not target minors."
+    summary_zh: "博彩广告需取得授权并受市场限制，不得面向未成年人。"
+    tags: ["博彩", "赌博", "受限内容", "持牌"]
+    effective_date: 2025-01-01
+    url: "https://transparency.meta.com/policies/ad-standards/"
+
+  - id: meta-minors
+    platform: Meta
+    section: "Objectionable Content > Minors"
+    text: "Ads must not encourage minors to purchase products or share personal information, and must not exploit minors."
+    summary_zh: "广告不得鼓励未成年人购买商品或提供个人信息，不得利用未成年人。"
+    tags: ["未成年人", "儿童", "个人信息"]
+    effective_date: 2025-01-01
+    url: "https://transparency.meta.com/policies/ad-standards/"
+
+  - id: meta-fake-urgency
+    platform: Meta
+    section: "Deceptive Content > Pressure Tactics"
+    text: "Ads must not use false urgency, fake countdowns, or misleading scarcity claims to pressure users."
+    summary_zh: "不得使用虚假紧迫、假倒计时或误导性限量宣称施压用户。"
+    tags: ["虚假紧迫", "限量", "倒计时", "促销"]
+    effective_date: 2025-01-01
+    url: "https://transparency.meta.com/policies/ad-standards/"

@@ -7,7 +7,7 @@ __pycache__/
 build/
 dist/
 .env
-data/
+data/*
 !data/watchlists/
 eval_report.md
 

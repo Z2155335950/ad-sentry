@@ -4,7 +4,7 @@ else
 PYTHON ?= .venv/Scripts/python.exe
 endif
 
-.PHONY: p0 p1 p2 verify-0 verify-1 verify-2 test lint run
+.PHONY: p0 p1 p2 p3 verify-0 verify-1 verify-2 verify-3 test lint run
 
 # Phase 0 验收：上传样例图，5 秒内产出 fixture 卡片
 p0:
@@ -18,10 +18,16 @@ p1:
 p2:
 	$(PYTHON) scripts/p2_check.py
 
+# Phase 3 验收：logo / 商标词 / 政策 RAG 单测 + 端到端植入命中
+p3:
+	$(PYTHON) -m pytest tests/test_trademark.py tests/test_policy.py tests/test_tools_logo.py -q
+	$(PYTHON) scripts/p3_check.py
+
 # 阶段验收入口：make verify-N（N 对应 Phase N）
 verify-0: p0
 verify-1: p1
 verify-2: p2
+verify-3: p3
 
 test:
 	$(PYTHON) -m pytest

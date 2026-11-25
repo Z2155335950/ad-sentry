@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "note": "Phase 3 mock：sample_15s.mp4 第 2 镜的 NIKE 文字；Vision 与 CLIP 两路模拟命中 + OCR 真实命中构成三路证据。",
+  "assets": {
+    "743987fa61be87b69fb46fa82038a3fde34c95a69ef1349e7a4e26a864c4fdda": {
+      "scenes": {
+        "1": {
+          "provider": "google_vision_logo(mock)",
+          "logos": [
+            {
+              "brand": "Nike",
+              "score": 0.93,
+              "bbox": [
+                0.44,
+                0.58,
+                0.56,
+                0.67
+              ]
+            }
+          ],
+          "clip": [
+            {
+              "brand": "Nike",
+              "score": 0.88
+            }
+          ]
+        }
+      }
+    }
+  }
+}
