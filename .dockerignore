@@ -1,0 +1,14 @@
+.venv/
+.venv*
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+.git/
+.env
+data/*
+!data/watchlists/
+eval_report.md
+eval_report.json
+fixtures/media/hero.mp4

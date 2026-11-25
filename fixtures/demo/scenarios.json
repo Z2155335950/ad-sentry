@@ -1,0 +1,253 @@
+{
+  "note": "Phase 7 演示回放：完整结果预置，不依赖外部工具与网络。所有素材均为合成/公开演示素材。",
+  "scenarios": [
+    {
+      "id": "risk_video",
+      "title": "高风险视频全链路",
+      "summary": "图库照片 + 合成人像 + 背景音乐，一张卡片三条信号",
+      "media": "fixtures/media/risk_ad_10s.mp4",
+      "media_type": "video",
+      "expected": "P0 版权图像；P1 公众人物；P2 BGM",
+      "campaign": {
+        "platform": "tiktok",
+        "market": "SEA",
+        "start": "2026-11-01",
+        "end": "2026-12-31"
+      },
+      "licenses": [],
+      "findings": [
+        {
+          "tool": "image_search",
+          "category": "copyright_image",
+          "level": "P0",
+          "confidence": 0.9,
+          "suggestion": "检测到与商业图库作品高度一致的画面，建议立即替换或补充授权。",
+          "dedupe_key": "copyright_image:vision:full:shutterstock:demo-001",
+          "evidence": [
+            {
+              "kind": "reference",
+              "ref_url": "https://www.shutterstock.com/image-photo/demo-001",
+              "ref_record_id": "vision:full:shutterstock:demo-001",
+              "note": "Google Vision 完整匹配 · 来源页性质：图库"
+            },
+            {
+              "kind": "timestamp",
+              "t_start": 2.64,
+              "t_end": 2.64,
+              "note": "关键帧 #0（分镜 0）"
+            },
+            {
+              "kind": "bbox",
+              "bbox": "0.08,0.12,0.52,0.88",
+              "note": "疑似作品区域"
+            }
+          ]
+        },
+        {
+          "tool": "celebrity",
+          "category": "celebrity",
+          "level": "P1",
+          "confidence": 0.86,
+          "suggestion": "疑似出现公众人物，请确认肖像授权；未命中不做任何推断。",
+          "dedupe_key": "celebrity:rekognition:demo-public-figure",
+          "evidence": [
+            {
+              "kind": "reference",
+              "ref_record_id": "rekognition:demo-public-figure",
+              "note": "AWS Rekognition 公众人物匹配（演示数据）"
+            },
+            {
+              "kind": "bbox",
+              "bbox": "0.41,0.18,0.63,0.57",
+              "note": "人脸区域（仅存位置，不存图像）"
+            },
+            {
+              "kind": "timestamp",
+              "t_start": 6.16,
+              "t_end": 6.16,
+              "note": "关键帧 #2（分镜 1）"
+            }
+          ]
+        },
+        {
+          "tool": "music",
+          "category": "bgm",
+          "level": "P2",
+          "confidence": 0.78,
+          "suggestion": "识别到背景音乐《Demo Track》，请核对商用授权。",
+          "dedupe_key": "bgm:acrcloud:demo-track-001",
+          "evidence": [
+            {
+              "kind": "reference",
+              "ref_record_id": "acrcloud:demo-track-001",
+              "note": "ACRCloud 识别：Demo Track / Demo Artist（演示数据）"
+            },
+            {
+              "kind": "timestamp",
+              "t_start": 0.0,
+              "t_end": 10.0,
+              "note": "音频窗口 0"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "license_expiry",
+      "title": "证据链与授权到期",
+      "summary": "BGM 识别命中，但挂接的授权已过期，信号抬升到 P1",
+      "media": "fixtures/media/sample_15s.mp4",
+      "media_type": "video",
+      "expected": "logo P0；BGM 授权已过期 → P1（附 license 证据）",
+      "campaign": {
+        "platform": "tiktok",
+        "market": "SEA",
+        "start": "2026-11-01",
+        "end": "2026-12-31"
+      },
+      "licenses": [
+        {
+          "key": "demo-license-expired",
+          "licensor": "示例音乐版权方",
+          "licensee": "示例广告主",
+          "scope_type": "music",
+          "scope_items": ["Demo Track"],
+          "territory": ["US", "EU"],
+          "media": ["tiktok", "meta"],
+          "start": "2025-01-01",
+          "end": "2025-06-30",
+          "sublicensable": false,
+          "restrictions": ["不得转授权"],
+          "source_doc": "fixtures/licenses/license_expired.pdf",
+          "field_confidence": {
+            "territory": 0.95,
+            "end": 0.95,
+            "start": 0.95,
+            "scope_type": 0.95
+          }
+        }
+      ],
+      "findings": [
+        {
+          "tool": "logo",
+          "category": "logo",
+          "level": "P0",
+          "confidence": 0.93,
+          "suggestion": "检测到疑似 Nike 品牌标识（Vision/CLIP/OCR 三路证据），建议核实使用授权。",
+          "dedupe_key": "logo:Nike",
+          "evidence": [
+            {
+              "kind": "reference",
+              "ref_record_id": "trademark:USPTO:6124779",
+              "ref_url": "https://tsdr.uspto.gov/#caseNumber=6124779",
+              "note": "Nike · USPTO 注册号 6124779 · 证据路线 Vision/CLIP/OCR"
+            },
+            {
+              "kind": "bbox",
+              "bbox": "0.71,0.12,0.88,0.30",
+              "note": "品牌标识区域"
+            },
+            {
+              "kind": "timestamp",
+              "t_start": 8.79,
+              "t_end": 8.79,
+              "note": "关键帧 #1（分镜 1）"
+            }
+          ]
+        },
+        {
+          "tool": "music",
+          "category": "bgm",
+          "level": "P2",
+          "confidence": 0.81,
+          "suggestion": "识别到背景音乐《Demo Track》，请核对商用授权。",
+          "dedupe_key": "bgm:acrcloud:demo-track-001",
+          "evidence": [
+            {
+              "kind": "reference",
+              "ref_record_id": "acrcloud:demo-track-001",
+              "note": "ACRCloud 识别：Demo Track / Demo Artist（演示数据）"
+            },
+            {
+              "kind": "timestamp",
+              "t_start": 0.0,
+              "t_end": 10.0,
+              "note": "音频窗口 0"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "recheck_pass",
+      "title": "替换后重检通过",
+      "summary": "替换素材后无 P0/P1 信号，可直接归档",
+      "media": "fixtures/eval/clean_new.png",
+      "media_type": "image",
+      "expected": "无风险信号；复检通过",
+      "campaign": {
+        "platform": "tiktok",
+        "market": "SEA",
+        "start": "2026-11-01",
+        "end": "2026-12-31"
+      },
+      "licenses": [],
+      "findings": []
+    },
+    {
+      "id": "clean_ai",
+      "title": "干净 AI 人像素材",
+      "summary": "无水印、无商标；仅一条 AI 疑似 P2 与平台标注提示 P3",
+      "media": "fixtures/media/clean_ai.png",
+      "media_type": "image",
+      "expected": "P2 AI 疑似；P3 平台 AI 标注义务",
+      "campaign": {
+        "platform": "tiktok",
+        "market": "SEA",
+        "start": "2026-11-01",
+        "end": "2026-12-31"
+      },
+      "licenses": [],
+      "findings": [
+        {
+          "tool": "aigen",
+          "category": "ai_generated",
+          "level": "P2",
+          "confidence": 0.55,
+          "suggestion": "疑似 AI 生成内容，请按平台要求确认标注义务。",
+          "dedupe_key": "ai_generated:watermark:doubao",
+          "evidence": [
+            {
+              "kind": "metadata",
+              "note": "检测到「豆包AI生成」水印；C2PA 未检出。检测器概率不可作为证据。"
+            }
+          ]
+        },
+        {
+          "tool": "policy",
+          "category": "policy",
+          "level": "P3",
+          "confidence": null,
+          "suggestion": "请对照平台 AI 内容披露条款确认标注义务。",
+          "dedupe_key": "policy:tiktok-ai-disclosure",
+          "evidence": [
+            {
+              "kind": "clause",
+              "clause_id": "tiktok-ai-disclosure",
+              "ref_url": "https://ads.tiktok.com/help/article/tiktok-advertising-policies",
+              "note": "TikTok · Content > AI-Generated Content · 生效日期 2025-09-01"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "batch_scan",
+      "kind": "batch",
+      "title": "历史素材批量巡检",
+      "summary": "汇总四条演示素材的风险分布，生成待处理清单",
+      "expected": "4 条素材 · 7 条信号：P0=2，P1=2，P2=2，P3=1；P0/P1 共 4 条",
+      "findings": []
+    }
+  ]
+}

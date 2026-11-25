@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}演示 · {{ scenario.title }}{% endblock %}
+{% block content %}
+<header class="top">
+  <h1>{{ scenario.title }}</h1>
+  <span class="sub">演示回放 · {{ scenario.id }}</span>
+</header>
+
+<div class="panel">
+  <p style="margin: 0 0 6px"><strong>预期结果：</strong>{{ scenario.expected }}</p>
+  <p class="muted" style="margin: 0">
+    素材：{{ asset.media_type }}
+    {% if asset.width %} · {{ asset.width }}×{{ asset.height }}{% endif %}
+    · sha256 <code>{{ asset.sha256[:16] }}…</code>
+    · 任务 #{{ job.id }}
+  </p>
+  <p class="muted" style="margin: 6px 0 0">
+    <a href="/demo/replay/{{ scenario.id }}?format=json">查看 JSON</a>
+    · <a href="/demo">返回演示列表</a>
+  </p>
+</div>
+
+<div class="panel">
+  {% if findings %}
+  <div class="row" style="justify-content: space-between">
+    <strong>{{ card.header.title.content }}</strong>
+    <span class="muted">{{ findings|length }} 条信号</span>
+  </div>
+  {% for f in findings %}
+  <div class="finding">
+    <div class="title">
+      <span class="badge {{ f.level }}">{{ f.level }}</span>
+      {{ f.category_label }} · {{ f.suggestion }}
+      <span class="muted">（置信 {{ "%.2f"|format(f.confidence) if f.confidence is not none else "—" }}）</span>
+    </div>
+    <ul class="ev">
+      {% for ev in f.evidence %}
+      <li>
+        [{{ {"reference": "参照物", "clause": "条款", "bbox": "位置", "timestamp": "时间戳", "metadata": "元数据", "license": "授权记录"}.get(ev.kind, ev.kind) }}]
+        {% if ev.ref_record_id %}{{ ev.ref_record_id }}{% endif %}
+        {% if ev.clause_id %}{{ ev.clause_id }}{% endif %}
+        {% if ev.bbox %}<code>bbox({{ ev.bbox }})</code>{% endif %}
+        {% if ev.t_start is not none %}<code>t={{ "%.1f"|format(ev.t_start) }}s</code>{% endif %}
+        {% if ev.ref_url %} <a href="{{ ev.ref_url }}" target="_blank" rel="noopener">来源</a>{% endif %}
+        {% if ev.note %}<br><span class="muted">{{ ev.note }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    <a class="btn" href="{{ review_urls[f.id] }}">查看证据链</a>
+  </div>
+  {% endfor %}
+  {% else %}
+  <strong>未发现风险信号</strong>
+  <p class="muted" style="margin: 8px 0 0">本素材复检通过；仍建议按平台规则与授权文件自行确认。</p>
+  {% endif %}
+</div>
+
+{% if ledger and ledger.items %}
+<div class="panel">
+  <strong>授权台账</strong>
+  {% if ledger.campaign %}
+  <p class="muted" style="margin: 6px 0">
+    投放：{{ ledger.campaign.platform }} · {{ ledger.campaign.market }}
+    {% if ledger.campaign.start %} · {{ ledger.campaign.start }} ~ {{ ledger.campaign.end or "—" }}{% endif %}
+  </p>
+  {% else %}
+  <p class="muted" style="margin: 6px 0">未登记投放信息：地域与媒介无法核验。</p>
+  {% endif %}
+  <ul class="ev">
+    {% for item in ledger.items %}
+    <li>
+      [{{ item.status_label }}] #{{ item.license_id }} {{ item.scope_type or "未标注范围" }}
+      · {{ item.start or "—" }} ~ {{ item.end or "—" }}
+      {% if item.reasons %}<br><span class="muted">{{ item.reasons | join("；") }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endblock %}

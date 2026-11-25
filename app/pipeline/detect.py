@@ -11,6 +11,7 @@ from collections import defaultdict
 from collections.abc import Callable
 from pathlib import Path
 
+from app.agent import ablation, verifier
 from app.config import settings
 from app.models import Asset, MediaType
 from app.pipeline import extract, ffmpeg, fuse
@@ -49,11 +50,16 @@ def _notify(on_stage: StageCallback | None, stage: str) -> None:
             logger.debug("stage 回调失败: %s", stage, exc_info=True)
 
 
+def _frame_limit(default: int) -> int:
+    """Planner 消融：关闭规则表时不做帧预算裁剪，用于对照调用次数。"""
+    return default if ablation.planner_enabled() else settings.max_frames
+
+
 def _run_image_search(
     asset: Asset, frames: list[dict], runtime: base.ToolRuntime
 ) -> list[dict]:
     signals: list[dict] = []
-    for frame in select_frames(frames, settings.tool_image_frames):
+    for frame in select_frames(frames, _frame_limit(settings.tool_image_frames)):
         result = websearch.search_image(
             runtime,
             extract.frame_file(asset, frame),
@@ -69,7 +75,7 @@ def _run_celebrity(
     asset: Asset, frames: list[dict], runtime: base.ToolRuntime
 ) -> list[dict]:
     signals: list[dict] = []
-    for frame in select_frames(frames, settings.tool_celebrity_frames):
+    for frame in select_frames(frames, _frame_limit(settings.tool_celebrity_frames)):
         result = celebrity.recognize(
             runtime,
             extract.frame_file(asset, frame),
@@ -108,7 +114,7 @@ def _run_logo(
     catalog: trademark.Catalog,
 ) -> list[dict]:
     signals: list[dict] = []
-    for frame in select_frames(frames, settings.tool_logo_frames):
+    for frame in select_frames(frames, _frame_limit(settings.tool_logo_frames)):
         result = logo.detect(
             runtime,
             extract.frame_file(asset, frame),
@@ -178,8 +184,11 @@ def run(
     extraction: dict,
     runtime: base.ToolRuntime,
     on_stage: StageCallback | None = None,
+    stats: dict | None = None,
 ) -> list[dict]:
     if not settings.tools_enabled:
+        if stats is not None:
+            stats["tools_enabled"] = False
         return []
     frames = extraction.get("frames") or []
     catalog = trademark.load_catalog()
@@ -203,4 +212,11 @@ def run(
     _notify(on_stage, "policy")
     signals.extend(_run_policy(extraction))
 
-    return fuse.dedupe_signals(signals)
+    signals = fuse.dedupe_signals(signals)
+
+    _notify(on_stage, "verifier")
+    verify_stats = verifier.verify(asset, extraction, signals, runtime)
+    if stats is not None:
+        stats["tools_enabled"] = True
+        stats["verifier"] = verify_stats
+    return signals

@@ -1,0 +1,11 @@
+{"id": "clean_sale", "path": "fixtures/eval/clean_sale.png", "clean": true, "truth": []}
+{"id": "clean_bike", "path": "fixtures/eval/clean_bike.png", "clean": true, "truth": []}
+{"id": "clean_new", "path": "fixtures/eval/clean_new.png", "clean": true, "truth": []}
+{"id": "clean_promo", "path": "fixtures/eval/clean_promo.png", "clean": true, "truth": []}
+{"id": "clean_plain", "path": "fixtures/eval/clean_plain.png", "clean": true, "truth": []}
+{"id": "clean_blank", "path": "fixtures/eval/clean_blank.png", "clean": true, "truth": []}
+{"id": "verify_prompt", "path": "fixtures/eval/verify_prompt.png", "clean": true, "truth": []}
+{"id": "sample_image", "path": "fixtures/media/sample_image.png", "clean": true, "truth": []}
+{"id": "clean_ai", "path": "fixtures/media/clean_ai.png", "clean": true, "truth": []}
+{"id": "sample_15s", "path": "fixtures/media/sample_15s.mp4", "clean": false, "truth": [{"category": "logo", "ref": "trademark", "level": "P0"}, {"category": "trademark_text", "ref": "6124779", "level": "P1"}]}
+{"id": "risk_ad_10s", "path": "fixtures/media/risk_ad_10s.mp4", "clean": false, "truth": [{"category": "copyright_image", "ref": "web:", "level": "P0"}, {"category": "celebrity", "ref": "rekognition", "level": "P1"}, {"category": "bgm", "ref": "acrcloud", "level": "P2"}]}

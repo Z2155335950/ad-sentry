@@ -2,6 +2,176 @@
 
 按时间倒序，「决策 / 原因 / 影响」。与 PROMPT.md 冲突时以 PROMPT 为准。
 
+## D045 演示回放用静态 scenarios.json 幂等写入
+
+- 决策：`fixtures/demo/scenarios.json` 保存五个场景的完整结果；`/demo/replay/{id}`
+  按素材 sha256、`Job.stage=demo:<id>`、Finding `dedupe_key` 幂等落库，重复打开不新增记录。
+- 原因：现场演示要求断网、可复现、可反复点开；实时跑工具会引入网络、模型加载与成本不确定性。
+- 影响：回放结果与真实上传写同一套表，复核页、授权面板、卡片逻辑完全复用；演示素材
+  `expires_at=None`，不会被 TTL 清理。修改演示内容只改 JSON 与 `scripts/demo_check.py`。
+
+## D044 演示缓存按素材键控，flat mock 保留
+
+- 决策：`DEMO_MODE=true` 时 `base.effective_mode` 优先命中
+  `fixtures/cache/<tool>/<sha256>.json`（单文件内含 `scenes` / `windows`），缺失才回落到
+  `TOOLS_MODE` 的 mock / live；flat 的 `fixtures/cache/<tool>.json` 继续服务单测与 `make pN`。
+- 原因：PROMPT §16 指定按 `{tool}/{hash}` 组织演示缓存；保留 flat mock 可以避免重写已有测试
+  与 Phase 2/3 验收脚本。
+- 影响：`scripts/make_demo_cache.py` 从 flat mock 生成按素材文件；新增演示素材时两步都要更新。
+
+## D043 TTL 清理使用显式 DELETE 顺序
+
+- 决策：`cleanup_expired` 不依赖 ORM relationship，按 ReviewAction → Evidence → Finding →
+  Detection → ToolCall → FeishuEvent → Job → AssetLicense → Campaign → Asset 的顺序
+  执行 `DELETE`，每个素材提交一次。
+- 原因：模型只有外键、没有 relationship，SQLAlchemy 工作单元不保证删除顺序；开启
+  `PRAGMA foreign_keys=ON` 后先删 asset 会触发 FOREIGN KEY constraint failed（本次验收实际踩到）。
+- 影响：新增引用 Asset / Finding / Job 的表时，必须把 DELETE 加到对应顺序之前，并补
+  `tests/test_cleanup.py` 的级联断言。
+
+## D042 双进程部署用 WORKER_IN_APP 控制
+
+- 决策：默认 `WORKER_IN_APP=true`，`uvicorn app.main:app` 在 lifespan 内同时跑 worker 与清理；
+  `docker-compose.yml` 的 app 服务设 `WORKER_IN_APP=false`，由 `python -m app.workers.run`
+  单独跑 worker，避免两个进程同时认领任务。
+- 原因：PROMPT §4 要求 compose 拆 app + worker；单机开发又需要 `make run` 一条命令可用。
+- 影响：换多 worker 前需把 `claim_next_job` 改为条件更新；清理循环与 worker 同生命周期。
+
+## D041 素材 TTL 改为配置项
+
+- 决策：`ASSET_TTL_HOURS`（默认 24）决定上传素材的 `expires_at`；
+  `CLEANUP_INTERVAL_SECONDS`（默认 3600）决定清理频率。
+- 原因：演示与测试需要缩短 TTL 验证删除；生产默认保持 PROMPT §14 的 24 小时。
+- 影响：`ingest.asset_ttl()` 是唯一计算点；清理只处理 `DATA_DIR` 下的文件，
+  `fixtures/` 演示素材永不删除。
+
+## D040 评测集控制在 12 条以内
+
+- 决策：`fixtures/eval.jsonl` 交付 11 条（2 条植入 + 9 条干净），不再扩充到 PROMPT §15
+  的 40–60 条；报告只给计数与 Wilson 区间，不给稳定的 precision/recall 小数。
+- 原因：PROMPT 顶部冲刺模式明确「评测集 >12 条」属禁止项，且正文的样本量纪律要求
+  n<15 时只报计数；造 40 条没有标注质量的样本反而会削弱可信度。
+- 影响：以后扩充评测集时同步改 `scripts/make_eval_set.py` 的天花板与报告口径。
+
+## D039 Verifier 无 bbox 时退化为整帧重搜
+
+- 决策：copyright_image 信号通常没有 bbox（图搜结果只有参照物 URL），Verifier 用
+  `0,0,1,1` 作为裁剪框，即整帧 2× 放大重搜。
+- 原因：PROMPT §10 的二次检索核心是「放大重搜」，bbox 只是定位手段；退化为整帧
+  仍能触发一次独立检索，且不会因为缺 bbox 直接跳过这条低置信信号。
+- 影响：新增工具若返回 bbox，Verifier 自动走局部裁剪；没有 bbox 时调用量不变。
+
+## D038 纯 VLM 基线只由评测脚本消费
+
+- 决策：`BASELINE_VLM_ONLY` 与 `app/agent/vlm_baseline.py` 只被 `app/eval/run_eval.py`
+  使用；生产流水线（worker / detect）不 import 该模块。
+- 原因：PROMPT §10 要求「纯 VLM 基线仅用于评测对比，绝不进生产路径」。把开关放在
+  detect 里等于给生产留了一个误开的入口。
+- 影响：基线数据来自 `fixtures/cache/vlm_baseline.json`，报告必须标注为缓存基线。
+
+## D037 mock 与线上统一用 `similar`
+
+- 决策：`websearch.assess` 把 `similar` 与 `visually_similar` 都按弱命中处理；
+  新写的 mock fixture 统一用 `similar`。
+- 原因：`normalize_vision_response` 输出 `similar`，而 Phase 2 的 mock 手写成了
+  `visually_similar`；`assess` 只判断 `!= "similar"`，导致「仅视觉相似」被当成
+  强命中出 P1，Phase 6 评测里表现为干净样本误报。
+- 影响：只影响弱命中判定；full/partial/stock 的定级路径不变，Phase 2/3 验收回归通过。
+
+
+
+## D036 单测屏蔽 .env 真实凭证
+
+- 决策：`tests/conftest.py` 在导入 `app` 之前把所有第三方凭证环境变量置空，并固定
+  `TOOLS_MODE=mock`、`FEISHU_MODE=mock`。
+- 原因：ACRCloud / 飞书凭证写进 `.env` 后，单测读到真实 `FEISHU_ENCRYPT_KEY` 会触发签名校验，
+  出现本机第一次跑就 403 的现象；测试结果不能依赖开发机的 `.env`。
+- 影响：新增外部服务时，把它的凭证键加进 conftest 的屏蔽列表；端到端脚本（`scripts/pN_check.py`）
+  自己显式设置所需 env，不受影响。
+
+## D035 FeishuEvent 承担幂等与回推
+
+- 决策：新增 `FeishuEvent(event_id, message_id 唯一, chat_id, job_id, status)`，
+  **不**给 `Job` 加来源字段。
+- 原因：PROMPT §6 锁定了 Job 结构；而幂等去重必须落库（进程重启后仍有效），
+  回推卡片也需要知道任务来自哪个会话。
+- 影响：状态机 `received → queued → processed | ignored | failed | notify_failed`；
+  清理任务（Phase 7）可与素材一起按 TTL 删除。
+
+## D034 `FEISHU_MODE=mock` 写本地 outbox
+
+- 决策：mock 模式下发送消息、写多维表格都追加到 `DATA_DIR/feishu_outbox.jsonl`，
+  下载资源返回 `fixtures/media/sample_image.png`。
+- 原因：`make p5` 必须离线可跑；把「发出去的东西」落成文件，验收脚本可以断言回执、
+  卡片标题、复核链接，而不用连测试租户。
+- 影响：outbox 是验收产物不是业务数据，随 `data/*` 被 gitignore；真实模式不写该文件。
+
+## D033 长连接与公网回调共用一条处理路径
+
+- 决策：`longconn.py` 把 SDK 事件对象转成 v2.0 JSON，交给 `events.handle_event`；
+  `/api/feishu/event` 也调用同一个函数。
+- 原因：两种接入方式的业务行为必须一致，否则演示用长连接、线上用回调会漂移。
+- 影响：新增事件类型时只改 `events.parse_event` / `handle_event`，两个入口自动生效。
+
+## D032 复核链接必须显式配置 `PUBLIC_BASE_URL`
+
+- 决策：卡片里的复核链接用 `PUBLIC_BASE_URL` 拼接，不再从请求头推导。
+- 原因：长连接模式没有 HTTP 请求，拿不到 `request.base_url`；跨进程推送也需要固定域名。
+- 影响：演示前把 `PUBLIC_BASE_URL` 改成评委可访问的地址，否则卡片按钮会指向本机。
+
+## D031 ACRCloud 请求必须带 sample_bytes
+
+- 决策：`_live_identify` 把窗口文件读进内存，同时提交 `sample` 文件与 `sample_bytes`（文件字节数），
+  再做 HMAC-SHA1 签名。
+- 原因：2026-11-25 用真实凭证首次调用返回 `3006 invalid arguments`——ACRCloud Identify 的
+  multipart 表单要求 `sample_bytes`，缺了它签名校验通过但参数校验失败。
+- 影响：签名串不包含 `sample_bytes`（仍是 `POST /v1/identify <key> audio 1 <ts>`），
+  新增参数不要误加进签名；回归测试 `test_live_request_sends_sample_bytes` 锁定请求形状。
+
+## D030 授权挂接只升不降
+
+- 决策：挂接授权记录后，若状态为 expired / out_of_territory / out_of_media / out_of_scope，
+  把 P2/P3 的信号抬到 P1；状态为 effective / expiring_soon 时只补 `license` 证据，不降级。
+- 原因：反向图搜、BGM、名人识别各自的参照物证据独立成立；授权有效只说明「这一路不再构成
+  授权问题」，不能抹掉其他工具已经发现的信号。自动降级会让 P0 证据链静默消失。
+- 影响：要降低等级只能人工在复核页驳回；`license` 证据按 `ref_record_id=license:{id}` 幂等。
+
+## D029 无 Campaign 不判地域与媒介
+
+- 决策：没有 Campaign 时状态只按日期给出，并在结果里带 `campaign_missing=True` 和
+  「缺少投放信息，地域与媒介无法核验」；复核页显式提示补充 platform / market。
+- 原因：PROMPT §9 要求缺投放上下文时输出「无法核验」，不得默认通过或拒绝。地域列表可以
+  离线归一（SEA ≈ 东南亚 / 新加坡），但市场本身必须由投放方给出。
+- 影响：登记 Campaign 后 `apply_to_asset` 立即重算并回写状态；市场无法识别时保守记为
+  「需人工核验」，不当作不符。
+
+## D028 授权书抽取默认走规则，LLM 只补空字段
+
+- 决策：`app/ledger/extract.py` 用标签行正则解析固定模板，PDF 文本层置信 0.95、OCR 0.6；
+  `LEDGER_LLM_ENABLED=true` 且装了 `.[llm]` 时用 `messages.parse` 补空字段，失败静默回退。
+- 原因：演示与验收必须离线可复现；扫描件的 OCR 置信不足以判定状态，正好触发
+  `needs_review` 的人工录入路径，比让模型编字段更可信。
+- 影响：自由格式 / 手写 / 印章授权书需要 LLM 或人工补录；新增模板只需扩 `LABEL_MAP`。
+
+## D027 状态机优先级固定
+
+- 决策：needs_review > out_of_scope > expired > out_of_territory > out_of_media >
+  expiring_soon > effective；关键字段 = 授权类型 / 地域 / 起止日期，置信阈值 0.7。
+- 原因：不可判定优先于可判定；已过期比地域不符更根本；范围不符说明记录与素材类别无关，
+  应先于日期判断，避免把不适用的授权拿来挡风险。
+- 影响：新增状态需要同时更新 `StatusResult.is_risk` 与优先级测试
+  （`tests/test_ledger_status.py`）。
+
+## D026 授权文件落盘位置与大小上限
+
+- 决策：上传的授权文件写 `DATA_DIR/licenses/<sha256><ext>`，单文件上限 20MB，扩展名白名单
+  `.pdf/.docx/.png/.jpg/.jpeg/.webp/.bmp`；原始文件不随仓库分发。
+- 原因：授权书含商业条款，属于客户数据；素材 TTL 清理（Phase 7）要一并覆盖该目录。
+- 影响：演示素材 `fixtures/licenses/` 是脚本生成的合成文件，可以入库；真实授权书走
+  `DATA_DIR`，不入库。
+
+
+
 ## D025 政策 RAG 只做提示级，阈值可调
 
 - 决策：BM25Plus 检索 + `POLICY_MIN_SCORE=8.0`；命中只产出 P3，并强制附 `clause_id`、

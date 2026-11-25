@@ -94,3 +94,46 @@ def test_unavailable_tool_emits_nothing():
         [base.ToolResult(tool="music", status="unavailable")],
     )
     assert signals == []
+
+
+def test_live_request_sends_sample_bytes(monkeypatch, tmp_path):
+    """ACRCloud 缺 sample_bytes 会返回 3006 invalid arguments（2026-11-25 实测）。"""
+    from types import SimpleNamespace
+
+    sample = b"RIFFxxxxWAVEfmt "
+    wav = tmp_path / "window.wav"
+    wav.write_bytes(sample)
+    captured: dict = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"status": {"code": 1001}}
+
+    def fake_post(url, data=None, files=None, timeout=None):
+        captured.update(url=url, data=data, files=files, timeout=timeout)
+        return FakeResponse()
+
+    monkeypatch.setattr(music.httpx, "post", fake_post)
+    monkeypatch.setattr(
+        music,
+        "settings",
+        SimpleNamespace(
+            acrcloud_host="identify-cn-north-1.acrcloud.cn",
+            acrcloud_access_key="key",
+            acrcloud_access_secret="secret",
+            timeout_music=10.0,
+        ),
+    )
+
+    result = music._live_identify(wav)
+
+    assert result["status"] == "no_match"
+    assert captured["url"] == "https://identify-cn-north-1.acrcloud.cn/v1/identify"
+    assert captured["data"]["sample_bytes"] == str(len(sample))
+    assert captured["data"]["data_type"] == "audio"
+    assert captured["data"]["signature_version"] == "1"
+    assert captured["data"]["access_key"] == "key"
+    assert captured["files"]["sample"][1] == sample

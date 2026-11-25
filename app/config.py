@@ -21,6 +21,13 @@ class Settings(BaseSettings):
     feishu_encrypt_key: str = ""
     feishu_bitable_app_token: str = ""
     feishu_bitable_table_id: str = ""
+    # live | mock：mock 写 DATA_DIR/feishu_outbox.jsonl，用于离线验收
+    feishu_mode: str = "live"
+    feishu_domain: str = "https://open.feishu.cn"
+    # 长连接（WebSocket）模式；关闭后走公网回调 /api/feishu/event
+    feishu_long_connection: bool = True
+    # 卡片里复核链接的前缀；长连接模式下没有请求头可推导，必须显式配置
+    public_base_url: str = "http://127.0.0.1:8000"
 
     # Google Cloud Vision
     google_application_credentials: str = ""
@@ -54,6 +61,11 @@ class Settings(BaseSettings):
     max_upload_mb: int = 200
     budget_per_asset_usd: float = 0.25
     review_token_ttl_hours: int = 24
+    # 素材 TTL 与清理任务（PROMPT §14）
+    asset_ttl_hours: float = 24.0
+    cleanup_interval_seconds: float = 3600.0
+    # 单进程开发时 app 内自带 worker；docker-compose 拆进程时 app 关闭它
+    worker_in_app: bool = True
 
     # 外部工具超时（秒），PROMPT.md §7
     timeout_image_search: float = 8.0
@@ -99,6 +111,17 @@ class Settings(BaseSettings):
     policy_top_k: int = 3
     # 自动产出提示的 BM25 阈值；直接检索（评测/演示查询）可显式放宽
     policy_min_score: float = 8.0
+
+    # 授权台账（Phase 4）。默认走规则解析；开启后用 LLM 补空字段，失败自动回退。
+    ledger_llm_enabled: bool = False
+    ledger_llm_model: str = "claude-opus-5-5"
+
+    # 消融与评测（Phase 6，PROMPT §10）
+    ablation_verifier: bool = True
+    ablation_planner: bool = True
+    # 纯 VLM 基线只由评测脚本读取，生产流水线不消费这个开关
+    baseline_vlm_only: bool = False
+    verifier_max_calls: int = 3
 
 
 @lru_cache

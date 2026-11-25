@@ -14,7 +14,10 @@ from app.models import Asset, Job, MediaType, utcnow
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
 VIDEO_EXTS = {".mp4", ".mov", ".webm", ".m4v", ".avi"}
-ASSET_TTL = timedelta(hours=24)
+
+
+def asset_ttl() -> timedelta:
+    return timedelta(hours=settings.asset_ttl_hours)
 
 
 class UnsupportedMedia(ValueError):
@@ -67,7 +70,7 @@ def store_asset(
             sha256=digest,
             media_type=media_type,
             path=str(dest),
-            expires_at=utcnow() + ASSET_TTL,
+            expires_at=utcnow() + asset_ttl(),
         )
         if media_type == MediaType.image.value:
             _read_image_size(asset, data)
@@ -77,7 +80,7 @@ def store_asset(
         # 记录可能还在但文件已被 TTL 清理，重新落盘并续期
         asset.path = str(dest)
         asset.media_type = media_type
-        asset.expires_at = utcnow() + ASSET_TTL
+        asset.expires_at = utcnow() + asset_ttl()
         if not dest.exists():
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(data)

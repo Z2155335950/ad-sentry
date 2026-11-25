@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}演示模式 · 素材哨兵{% endblock %}
+{% block content %}
+<header class="top">
+  <h1>演示模式</h1>
+  <span class="sub">预置完整结果，断网可复现 · 不调用外部工具</span>
+</header>
+
+{% for s in scenarios %}
+<div class="panel">
+  <div class="row" style="justify-content: space-between">
+    <strong>{{ s.title }}</strong>
+    <a class="btn primary" href="/demo/replay/{{ s.id }}">打开回放</a>
+  </div>
+  <p class="muted" style="margin: 8px 0 4px">{{ s.summary }}</p>
+  <p style="margin: 0">预期结果：{{ s.expected }}</p>
+  <p class="muted" style="margin: 6px 0 0">
+    <code>/demo/replay/{{ s.id }}</code>
+    · <a href="/demo/replay/{{ s.id }}?format=json">JSON</a>
+  </p>
+</div>
+{% endfor %}
+
+
+<div class="panel">
+  <strong>现场使用</strong>
+  <p class="muted" style="margin: 8px 0 0">
+    启动服务时设置 <code>DEMO_MODE=true</code>；其余素材走真实上传入口
+    <a href="/">/</a>。回放结果与复核动作写入当前数据库，可反复打开。
+  </p>
+</div>
+{% endblock %}

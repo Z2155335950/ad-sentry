@@ -12,6 +12,178 @@
 - `fixtures/media/risk_ad_10s.mp4`（合成，Phase 2）：10s 三分镜，植入图库照片 / 合成人像 /
   合成旋律；配套 mock 在 `fixtures/cache/`，见 [fixtures/README.md](fixtures/README.md)。
 
+## Phase 7（2026-11-25）✅
+
+**验收**：`make verify-7`（清理/演示单测 → `scripts/p7_check.py` → `scripts/demo_check.py`）
+
+- 结果：通过。TTL 清理删除过期素材 1 条、素材文件 1 个、抽取目录 1 个、孤儿授权文件 1 个，
+  未过期素材与被 LicenseRecord 引用的授权文件保留；五个演示场景离线回放通过，
+  批量汇总 4 条素材 / 7 条信号（P0 2、P1 2、P2 2、P3 1）。
+- `pytest -q`：**140 passed**；ruff 全绿；`make verify-0/1/2/3/4/5/6` 回归通过。
+
+**完成项**
+
+- 演示缓存：`DEMO_MODE=true` 时工具优先读 `fixtures/cache/<tool>/<sha256>.json`
+  （按素材与分镜/窗口键控），缺失才回落 mock / live；`scripts/make_demo_cache.py`
+  从 flat mock 生成，已提交 5 个缓存文件。
+- 回放：`GET /demo`、`GET /demo/replay/{id}`（HTML / `?format=json`）；五个场景为
+  高风险视频全链路、授权到期、替换后复检、干净 AI 人像、历史批量巡检。
+  场景数据幂等写入，卡片与复核页直接可用；`DEMO_MODE=false` 时接口返回 404。
+- TTL：`app/workers/cleanup.py` 按外键顺序删除过期素材及其 Job / Detection / Finding /
+  Evidence / ReviewAction / ToolCall / FeishuEvent / 授权挂接 / Campaign，并删除素材文件、
+  `extracted/<sha256>/` 与未被引用的旧授权文件；`cleanup_loop` 每小时跑一次；
+  `ASSET_TTL_HOURS` / `CLEANUP_INTERVAL_SECONDS` 可调。
+- 部署：`Dockerfile`、`.dockerignore`、`docker-compose.yml`（app + worker）；
+  `WORKER_IN_APP=false` 关闭 app 内 worker，避免双 worker；`app/workers/run.py`
+  作为独立进程同时跑任务队列与清理。
+- 验收：`scripts/p7_check.py`、`scripts/demo_check.py`、`tests/test_cleanup.py`、
+  `tests/test_demo_api.py`，并在 `tests/test_tools_base.py` 增加 demo 缓存优先用例；
+  Makefile 增加 `p7` / `verify-7` / `demo` / `cleanup`。
+
+**未完成 / 已知限制**
+
+- 本机没有 Docker，镜像与 compose 未实际构建运行，只做静态存在性与配置断言。
+- `batch_scan` 是预置结果的汇总回放，不是对历史素材库重跑流水线。
+- 演示素材 `expires_at=None`，TTL 清理不会删除它们；真实上传素材仍按 24h 清理。
+- app 与 worker 共用 SQLite（WAL），仅支持单机；多 worker 仍需把认领改为条件更新。
+- 演示缓存只覆盖已有 mock 的素材；新增素材需重跑 `scripts/make_demo_cache.py`。
+- `make demo` 用 TestClient 离线验证并打印 URL；现场需要以 `DEMO_MODE=true` 启动服务。
+
+**下一步**：Phase 8 —— 彩排、录屏、修误报；全链路 p50 达标（图片 <20s、15s 视频 <60s）。
+
+## Phase 6（2026-11-25）✅
+
+**验收**：`make eval`（先跑 Verifier / 指标单测，再生成 `eval_report.md` + `eval_report.json`）
+
+- 结果：通过。评测集 **11 条**（干净 9 条，受冲刺模式 ≤12 条约束）：
+  - 完整链路 P0/P1 **召回 4/4、精确 4/4、干净集误报 0/9**，外部调用 52 次；
+  - 关闭 Verifier：51 次；关闭 Planner 帧预算：56 次（帧预算放大带来 4 次额外调用）；
+  - Verifier：低置信候选 1 条、二次检索 1 次、置信升级 0 条（mock 下同一分镜命中同一缓存）。
+- `pytest -q`：**131 passed**；ruff 全绿；`make verify-0/1/2/3/4/5` 回归通过。
+
+**完成项**
+
+- `app/agent/verifier.py`：`0.4 ≤ confidence < 0.7` 的 copyright_image / logo 信号 →
+  bbox 外扩 20%（无 bbox 时退化为整帧）→ 裁剪 → 2× 放大 → 同工具重搜；
+  置信提升才合并并写证据「Verifier 二次检索」，最多 `VERIFIER_MAX_CALLS` 次、1 轮。
+- `app/agent/ablation.py` + config：`ABLATION_VERIFIER` / `ABLATION_PLANNER` /
+  `BASELINE_VLM_ONLY` / `VERIFIER_MAX_CALLS`。
+- `app/agent/vlm_baseline.py`：纯 VLM 基线只读 `fixtures/cache/vlm_baseline.json`，
+  仅评测脚本消费，生产流水线不 import。
+- `app/eval/metrics.py`：类别 +（ref 相同 / bbox IoU ≥0.3 / 时间重叠 ≥50%）匹配、
+  P0/P1 precision/recall、干净集误报、Wilson 区间、延迟分位数。
+- `app/eval/run_eval.py`：四组对照（VLM 基线 / 无 Verifier / 完整 / 关闭 Planner），
+  预热抽取缓存后再计时，输出 Markdown + JSON。
+- `scripts/make_eval_set.py`：生成 11 条评测集、6 张干净样本（含对抗样本 `clean_bike`）、
+  一条低置信 image_search mock（触发 Verifier）与 VLM 基线缓存。
+- 修复：mock 里 `visually_similar` 与归一化后的 `similar` 不一致，导致「仅视觉相似」
+  被当成强命中出 P1；`websearch.assess` 现在两种写法都按弱命中处理。
+
+**未完成 / 已知限制**
+
+- 工具层仍是 mock：调用次数与成本可测，召回/误报反映的是 fixture 行为。
+- 样本量远小于 PROMPT §15 的 40–60 条，整体 n<15，报告只给计数与 Wilson 区间。
+- Verifier 的真实收益需要 live 凭证：mock 下二次检索命中同一缓存，置信不会提升。
+- 纯 VLM 基线是缓存（含一条人工标注的幻觉误报），不代表当前模型的真实能力。
+- 延迟包含抽取（已预热缓存），不等同线上 SLA；成本在 mock 下恒为 0。
+
+**下一步**：Phase 7 —— 演示模式、缓存与兜底、TTL 清理、Docker Compose，
+验收 `make demo` 离线可复现。
+
+## Phase 5（2026-11-25）✅
+
+**验收**：`make verify-5`（先跑三个飞书模块单测，再跑 `python scripts/p5_check.py`）
+
+- 结果：通过。mock 回环 0.50s：`url_verification` 回显 challenge；图片消息事件建任务并回执；
+  同一 `message_id` 重复投递不重复建任务；任务完成后推送「P1 · 高风险信号 | 2 条信号」卡片，
+  卡片内复核链接带签名 token、页面可打开；驳回空理由返回 400、确认动作写入 `ReviewAction`。
+- `pytest -q`：**120 passed**；ruff 全绿；`make verify-0/1/2/3/4` 回归通过。
+
+**完成项**
+
+- `app/feishu/client.py`：tenant_access_token（缓存、提前 60s 过期）、发文本/卡片、
+  下载消息资源、多维表格追加；`FEISHU_MODE=mock` 全部写 `DATA_DIR/feishu_outbox.jsonl`。
+- `app/feishu/events.py`：v2.0 事件解析、Verification Token 校验、`X-Lark-Signature` 校验、
+  加密事件解密（`AESCipher`）、按 `message_id` 幂等、回执 → 下载 → `store_asset` 建任务。
+- `app/feishu/longconn.py`：官方 SDK 长连接（WebSocket）监听 `im.message.receive_v1`，
+  SDK 对象转 v2.0 JSON 后复用同一条处理路径；lifespan 内后台线程启动。
+- `app/feishu/notify.py`：任务完成后按 `FeishuEvent.job_id` 推卡片；无信号时发文本；
+  推送失败只标记 `notify_failed`，不影响任务状态。
+- `app/api/feishu.py`：公网回调 `/api/feishu/event`（`url_verification`、验签、解密、
+  Token 校验），与长连接共用逻辑；`FEISHU_ENABLED=false` 返回 503。
+- 数据层：新增 `FeishuEvent`（`message_id` 唯一）承担幂等与「回推目标会话」。
+- 输出：卡片复用 `pipeline/report.build_card`；复核链接改用 `PUBLIC_BASE_URL` 拼接。
+- 验收与测试：`scripts/p5_check.py`、Makefile `p5`/`verify-5`、13 个新增单测；
+  `tests/conftest.py` 现在会把 `.env` 里的真实凭证清空，保证单测与本机状态无关。
+
+**未完成 / 已知限制**
+
+- **长连接未经真实凭证验证**：`.env` 里还没有 `FEISHU_APP_ID` / `FEISHU_APP_SECRET`，
+  `lark-oapi` 已安装（`pip install -e ".[feishu]"`），凭证到位后启动服务即可看到
+  「飞书长连接启动」日志。
+- 多维表格只在配置 `FEISHU_BITABLE_APP_TOKEN` / `FEISHU_BITABLE_TABLE_ID` 时写入，
+  当前未申请 `bitable:app` 权限。
+- 图片、文件、视频三种消息类型都实现了下载与入库，但真实文件下载只用 mock 验证过。
+- 卡片是 card 1.0 结构；若飞书客户端改版需要升级到 2.0，只改 `pipeline/report.py`。
+- 复核链接默认指向 `PUBLIC_BASE_URL`，演示时需改成评委能访问的地址。
+
+**下一步**：Phase 6 —— Verifier 二次检索 + 评测 + 消融，
+验收 `make eval`：生成报告。
+
+## Phase 4（2026-11-25）✅
+
+**验收**：`make verify-4`（先跑四个台账单测，再跑 `python scripts/p4_check.py`）
+
+- 结果：通过。三份合成授权书字段完整，登记 TikTok / SEA 投放后状态分别为
+  `expired` / `out_of_territory` / `effective`；挂接素材后状态重算并写库；
+  驳回空理由返回 400、确认动作写入 `ReviewAction`；台账链路 **1.01s**。
+- `pytest -q`：**106 passed**；ruff 全绿；`make verify-0/1/2/3` 回归通过。
+
+**完成项**
+
+- 抽取层 `app/ledger/extract.py`：PDF（PyMuPDF 文本层，扫描件渲染后 OCR）、DOCX
+  （解包 `word/document.xml`）、图片（复用抽取层 OCR）；标签行规则解析授权方 / 被授权方 /
+  授权类型 / 范围 / 地域 / 媒介 / 起止日期 / 可转授权 / 限制，日期支持 `- / . 年月日`。
+  文本层置信 0.95、OCR 0.6；关键字段缺失或低置信进入 `needs_review`。
+- LLM 可选路径：`LEDGER_LLM_ENABLED=true` 且安装 `.[llm]` 时用 `claude-opus-5-5` 的
+  `messages.parse` 补空字段；任何异常回退规则解析。
+- 状态机 `app/ledger/status.py`：七种状态；优先级 needs_review > out_of_scope > expired >
+  out_of_territory > out_of_media > expiring_soon > effective；地域 / 平台别名归一
+  （SEA、东南亚、新加坡……；Meta = Facebook/Instagram）；无 Campaign 时不判地域/媒介并
+  标注 `campaign_missing`。
+- 台账挂接 `app/ledger/gate.py`：重算记录状态；给覆盖到的风险类别补 `license` 证据
+  （幂等）；过期/地域/媒介/范围不符时把 P2/P3 抬到 P1，**不降级**。
+- API `app/api/admin_ledger.py`：`POST /api/licenses/upload`、`GET /api/licenses`、
+  `GET|PATCH /api/licenses/{id}`、`POST /api/licenses/{id}/link`、
+  `POST /api/assets/{id}/campaign`、`GET /api/assets/{id}/ledger`。
+- 复核页：新增「授权台账」面板（状态与原因、挂接记录、登记/修改投放信息）。
+- 素材与验收：`scripts/make_p4_fixtures.py` 生成三份授权书 PDF（字体子集，约 144KB/份）；
+  `scripts/p4_check.py`、Makefile `p4`/`verify-4`、26 个新增单测。
+
+**凭证验证（2026-11-25）**
+
+- ACRCloud **已用真实凭证验证**（中国区 `identify-cn-north-1.acrcloud.cn`）：
+  单窗口识别 1.09s 返回 `1001 no_match`（演示素材是合成旋律，属预期），
+  完整 BGM 链路 `TOOLS_MODE=live` 跑通，`ToolCall(music, ok=True, cost=$0.008)` 记账正常，
+  输出 P2「未识别出背景音乐」而非空结果。
+- 首次调用返回 `3006 invalid arguments`：请求缺 `sample_bytes` 字段。已修复
+  （`app/tools/music.py`）并补回归测试 `test_live_request_sends_sample_bytes`。
+- 仍待真实凭证验证：Google Vision（图搜 / logo）、AWS Rekognition（公众人物）。
+
+**未完成 / 已知限制**
+
+- 字段抽取针对固定标签行模板；自由格式、手写、印章文件需要 LLM 路径或人工补录。
+  LLM 路径未用真实凭证验证（当前无 `ANTHROPIC_API_KEY`）。
+- `sublicensable` / `restrictions` 只做记录，不参与状态判定。
+- 素材↔授权仍是人工挂接（PROMPT §9 的 MVP 边界），挂接后会自动重算，但不会自动匹配。
+- Campaign 只有 platform / market / 起止日期，没有品类字段，所以商标词仍最高 P1。
+- 授权书上传上限 20MB；原始文件留在 `DATA_DIR/licenses/`，TTL 清理在 Phase 7 一并处理。
+
+**下一步**：Phase 5 —— 飞书收发 + 风险卡片 + 多维表格（可选），
+验收 `make p5`：测试租户 round-trip。
+
+
+
 ## Phase 3（2026-11-25）✅
 
 **验收**：`make verify-3`（先跑三个模块单测，再跑 `python scripts/p3_check.py`）
@@ -88,8 +260,8 @@
 
 **未完成 / 已知限制**
 
-- 三个 live 适配器均**未用真实凭证验证**：Google Vision（API key / 服务账号）、ACRCloud、
-  AWS Rekognition（手写 SigV4）。凭证到位后先跑单素材对照，再切 `TOOLS_MODE=auto`。
+- 三个 live 适配器中 **ACRCloud 已于 2026-11-25 用真实凭证验证**（见 Phase 4「凭证验证」）；
+  Google Vision 与 AWS Rekognition 仍未验证，凭证到位后先跑单素材对照，再切 `TOOLS_MODE=auto`。
 - 服务账号鉴权需 `pip install -e ".[vision]"`（google-auth）；API key 路径无额外依赖。
 - 名人 live 只送第一张人脸的裁剪；多人画面会漏检其余人脸（Phase 6 Verifier 再补）。
 - 未识别 BGM 的「高价值信号」只在 live 明确 no_match 时产出；mock 缺 fixture 不编造。

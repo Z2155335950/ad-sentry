@@ -197,6 +197,14 @@ def process_job(job_id: int) -> None:
             job.finished_at = utcnow()
             session.add(job)
             session.commit()
+
+        # 飞书来源的任务把卡片推回原会话；通知失败不影响任务状态
+        try:
+            from app.feishu.notify import notify_job_done
+
+            notify_job_done(job_id)
+        except Exception:
+            logger.warning("飞书通知失败 job=%s", job_id, exc_info=True)
     except Exception as exc:  # 单任务失败不拖垮 worker
         logger.exception("job %s failed", job_id)
         with Session(engine) as session:

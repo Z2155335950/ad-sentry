@@ -22,7 +22,31 @@ Phase 2 的外部工具默认走 mock，按**素材 sha256 + 分镜/窗口序号
 Phase 3 的 `logo.json` 由 `scripts/make_p3_fixtures.py` 生成（`make p3` 会自动补齐）。
 商标词表与政策条款是静态数据，位于 `data/watchlists/`，不按素材键控。
 
+## 授权书样本（`fixtures/licenses/`）
+
+三份**合成**授权书（PDF，含中文字体子集），由 `scripts/make_p4_fixtures.py` 生成，
+不对应任何真实授权关系：
+
+| 文件 | 覆盖场景 | 关键字段 |
+| --- | --- | --- |
+| `license_expired.pdf` | 授权已过期 | 到期 2025-06-30；地域 美国、欧盟；媒介 TikTok、Meta |
+| `license_sea_excluded.pdf` | 地域不含东南亚 | 到期 2027-12-31；地域 美国、欧盟、英国 |
+| `license_valid.pdf` | 授权有效 | 到期 2027-12-31；地域 东南亚、美国 |
+
+`make p4` 会上传三份文件、登记 TikTok / SEA 投放上下文、挂接素材，断言状态分别为
+`expired` / `out_of_territory` / `effective`。
+
 凭证齐全后用 `TOOLS_MODE=auto` 切换真实调用；mock 文件缺失时工具返回空，不编造信号。
+
+## 演示回放（Phase 7）
+
+`fixtures/demo/scenarios.json` 保存五个路演场景的完整结果（findings / 证据 / Campaign /
+授权记录）：风险视频全链路、授权到期、替换后复检、干净 AI 人像、历史批量巡检。
+`/demo/replay/{id}` 按素材 sha256 幂等写入，不调用外部工具。
+
+`fixtures/cache/<tool>/<sha256>.json` 是 `DEMO_MODE=true` 的按素材缓存
+（`image_search` / `celebrity` / `music` / `logo`），由 `scripts/make_demo_cache.py`
+从 flat mock 生成；演示缓存缺失时才回落 `TOOLS_MODE`。新增演示素材后需重跑该脚本。
 
 ## 未入库素材
 

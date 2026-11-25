@@ -1,0 +1,24 @@
+{
+  "scenes": {
+    "0": {
+      "provider": "google_vision(mock)",
+      "matches": [
+        {
+          "url": "https://www.shutterstock.com/image-photo/demo-123456",
+          "title": "Premium Stock Photo - Demo",
+          "match_type": "full",
+          "domain_kind": "stock"
+        },
+        {
+          "url": "https://example-blog.test/design/inspiration",
+          "title": "Design inspiration roundup",
+          "match_type": "visually_similar",
+          "domain_kind": "blog"
+        }
+      ],
+      "best_guess_labels": [
+        "stock photo"
+      ]
+    }
+  }
+}

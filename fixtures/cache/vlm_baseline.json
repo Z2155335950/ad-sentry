@@ -1,0 +1,36 @@
+{
+  "note": "纯 VLM 基线缓存（一次人工记录的模型直读结论），仅用于评测对比",
+  "assets": {
+    "743987fa61be87b69fb46fa82038a3fde34c95a69ef1349e7a4e26a864c4fdda": [
+      {
+        "category": "logo",
+        "level": "P1",
+        "confidence": 0.6
+      },
+      {
+        "category": "trademark_text",
+        "level": "P1",
+        "confidence": 0.7
+      }
+    ],
+    "5e3af61007710de2baf9272204a0379a49a72bcdcb0b0c79f1372ed588d771dc": [
+      {
+        "category": "copyright_image",
+        "level": "P0",
+        "confidence": 0.6
+      },
+      {
+        "category": "celebrity",
+        "level": "P1",
+        "confidence": 0.75
+      }
+    ],
+    "1e3a01b1d31cd36c44f9e9de2c8b81a8f14c4e7652bd97a52232858fc7e3e7ac": [
+      {
+        "category": "celebrity",
+        "level": "P1",
+        "confidence": 0.6
+      }
+    ]
+  }
+}

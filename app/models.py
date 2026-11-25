@@ -205,6 +205,19 @@ class ReviewAction(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow)
 
 
+class FeishuEvent(SQLModel, table=True):
+    """飞书消息事件：message_id 唯一，用来做幂等去重与「任务完成后回推卡片」。"""
+
+    id: int | None = Field(default=None, primary_key=True)
+    event_id: str = Field(default="", index=True)
+    message_id: str = Field(default="", index=True, unique=True)
+    chat_id: str = Field(default="", index=True)
+    job_id: int | None = Field(default=None, foreign_key="job.id", index=True)
+    status: str = Field(default="received", index=True)
+    note: str = Field(default="", sa_column=Column(Text))
+    created_at: datetime = Field(default_factory=utcnow)
+
+
 class ToolCall(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     job_id: int | None = Field(default=None, foreign_key="job.id", index=True)

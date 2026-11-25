@@ -145,7 +145,9 @@ def assess(normalized: dict) -> dict:
     if not matches:
         return {"level": None, "confidence": None, "matches": []}
 
-    strong = [m for m in matches if m.get("match_type") != "similar"]
+    # 归一化后是 "similar"；手工 mock 里可能写成 "visually_similar"，一并按弱命中处理
+    weak_types = {"similar", "visually_similar"}
+    strong = [m for m in matches if m.get("match_type") not in weak_types]
     stock = [m for m in strong if m.get("domain_kind") == "stock"]
     if stock:
         others = [m for m in strong if m.get("domain_kind") != "stock"]
@@ -202,9 +204,11 @@ def search_image(
     timestamp: float,
 ) -> base.ToolResult:
     path = Path(image_path)
-    mode = base.resolve_mode("image_search")
+    mode = base.effective_mode("image_search", asset_sha256, scene_index)
 
     def run() -> dict | None:
+        if mode == "demo":
+            return base.demo_entry("image_search", asset_sha256, scene_index)
         if mode == "mock":
             return base.mock_entry("image_search", asset_sha256, scene_index)
         return _live_search(path)

@@ -25,6 +25,24 @@
           ]
         }
       }
+    },
+    "ea11c7ca5928706174dd1d3c61cafeef139702fbdb2699bd1ee5c5e059579b2c": {
+      "scenes": {
+        "0": {
+          "provider": "google_vision(mock)",
+          "matches": [
+            {
+              "url": "https://example-gallery.test/retro-poster",
+              "title": "Retro poster collection",
+              "match_type": "similar",
+              "domain_kind": "blog"
+            }
+          ],
+          "best_guess_labels": [
+            "poster"
+          ]
+        }
+      }
     }
   }
 }

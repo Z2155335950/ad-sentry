@@ -82,3 +82,25 @@ def test_auto_mode_uses_live_only_when_configured(monkeypatch):
 
     monkeypatch.setattr(settings, "google_vision_api_key", "test-key")
     assert base.resolve_mode("image_search") == "live"
+
+
+def test_demo_cache_takes_priority_over_live(monkeypatch):
+    import hashlib
+    from pathlib import Path
+
+    from app.config import settings
+
+    root = Path(__file__).resolve().parents[1]
+    sha256 = hashlib.sha256(
+        (root / "fixtures" / "media" / "risk_ad_10s.mp4").read_bytes()
+    ).hexdigest()
+
+    monkeypatch.setattr(settings, "demo_mode", True)
+    monkeypatch.setattr(settings, "tools_mode", "live")
+    assert base.effective_mode("image_search", sha256, 0) == "demo"
+    assert base.demo_entry("image_search", sha256, 0) is not None
+    # 缓存缺失的帧才回落真实调用
+    assert base.effective_mode("image_search", sha256, 99) == "live"
+
+    monkeypatch.setattr(settings, "demo_mode", False)
+    assert base.effective_mode("image_search", sha256, 0) == "live"

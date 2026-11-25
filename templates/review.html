@@ -48,6 +48,66 @@
 </div>
 
 <div class="panel">
+  <strong>授权台账</strong>
+  {% if ledger %}
+  {% if ledger.campaign %}
+  <p class="muted" style="margin: 6px 0">
+    投放：{{ ledger.campaign.platform }} · {{ ledger.campaign.market }}
+    {% if ledger.campaign.start %} · {{ ledger.campaign.start }} ~ {{ ledger.campaign.end or "—" }}{% endif %}
+  </p>
+  {% else %}
+  <p class="muted" style="margin: 6px 0">
+    未登记投放信息：地域与媒介无法核验，需补充 platform / market 后再判断。
+  </p>
+  {% endif %}
+
+  <ul class="ev" style="margin-top: 10px">
+    {% for item in ledger["items"] %}
+    <li>
+      [{{ item.status_label }}] #{{ item.record.id }}
+      {{ item.record.scope_type or "未标注范围" }}
+      · {{ item.record.start or "—" }} ~ {{ item.record.end or "—" }}
+      {% if item.result.reasons %}
+      <br><span class="muted">{{ item.result.reasons | join("；") }}</span>
+      {% endif %}
+    </li>
+    {% else %}
+    <li>尚未挂接授权记录</li>
+    {% endfor %}
+  </ul>
+
+  {% if ledger.available %}
+  <div class="row" style="margin-top: 10px">
+    <select id="license-select">
+      {% for record in ledger.available %}
+      <option value="{{ record.id }}">
+        #{{ record.id }} {{ record.scope_type or "未标注" }} · {{ record.start or "—" }} ~ {{ record.end or "—" }}
+      </option>
+      {% endfor %}
+    </select>
+    <button class="btn" id="btn-link" type="button">挂接到本素材</button>
+    <span class="muted" id="ledger-status"></span>
+  </div>
+  {% endif %}
+
+  <details style="margin-top: 12px">
+    <summary class="muted">登记 / 修改投放信息</summary>
+    <div class="row" style="margin-top: 8px; flex-wrap: wrap">
+      <input id="campaign-platform" placeholder="platform，如 tiktok"
+             value="{{ ledger.campaign.platform if ledger.campaign else '' }}">
+      <input id="campaign-market" placeholder="market，如 SEA"
+             value="{{ ledger.campaign.market if ledger.campaign else '' }}">
+      <input id="campaign-start" placeholder="start YYYY-MM-DD"
+             value="{{ ledger.campaign.start if ledger.campaign and ledger.campaign.start else '' }}">
+      <input id="campaign-end" placeholder="end YYYY-MM-DD"
+             value="{{ ledger.campaign.end if ledger.campaign and ledger.campaign.end else '' }}">
+      <button class="btn" id="btn-campaign" type="button">保存投放信息</button>
+    </div>
+  </details>
+  {% endif %}
+</div>
+
+<div class="panel">
   <strong>复核动作</strong>
   <p class="muted" style="margin: 6px 0 10px">驳回必须填写理由，理由用于阈值与规则回流。</p>
   <textarea id="reason" placeholder="驳回理由 / 复核备注"></textarea>
@@ -87,5 +147,51 @@ async function submitAction(action) {
 
 document.getElementById('btn-confirm').addEventListener('click', () => submitAction('confirm'));
 document.getElementById('btn-reject').addEventListener('click', () => submitAction('reject'));
+
+const ASSET_ID = {{ asset.id if asset else 'null' }};
+const ledgerStatus = document.getElementById('ledger-status');
+
+async function postJson(url, body) {
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(data.detail || '操作失败');
+  return data;
+}
+
+const linkButton = document.getElementById('btn-link');
+if (linkButton && ASSET_ID) {
+  linkButton.addEventListener('click', async () => {
+    const licenseId = document.getElementById('license-select').value;
+    ledgerStatus.textContent = '挂接中…';
+    try {
+      await postJson(`/api/licenses/${licenseId}/link`, { asset_id: ASSET_ID });
+      window.location.reload();
+    } catch (err) {
+      ledgerStatus.textContent = err.message;
+    }
+  });
+}
+
+const campaignButton = document.getElementById('btn-campaign');
+if (campaignButton && ASSET_ID) {
+  campaignButton.addEventListener('click', async () => {
+    ledgerStatus.textContent = '保存中…';
+    try {
+      await postJson(`/api/assets/${ASSET_ID}/campaign`, {
+        platform: document.getElementById('campaign-platform').value,
+        market: document.getElementById('campaign-market').value,
+        start: document.getElementById('campaign-start').value || null,
+        end: document.getElementById('campaign-end').value || null,
+      });
+      window.location.reload();
+    } catch (err) {
+      ledgerStatus.textContent = err.message;
+    }
+  });
+}
 </script>
 {% endblock %}

@@ -1,0 +1,25 @@
+{
+  "scenes": {
+    "1": {
+      "provider": "google_vision_logo(mock)",
+      "logos": [
+        {
+          "brand": "Nike",
+          "score": 0.93,
+          "bbox": [
+            0.44,
+            0.58,
+            0.56,
+            0.67
+          ]
+        }
+      ],
+      "clip": [
+        {
+          "brand": "Nike",
+          "score": 0.88
+        }
+      ]
+    }
+  }
+}

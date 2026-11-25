@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}演示 · {{ scenario.title }}{% endblock %}
+{% block content %}
+<header class="top">
+  <h1>{{ scenario.title }}</h1>
+  <span class="sub">历史素材批量巡检 · 演示汇总</span>
+</header>
+
+<div class="panel">
+  <p style="margin: 0 0 6px"><strong>预期结果：</strong>{{ scenario.expected }}</p>
+  <p class="muted" style="margin: 0">
+    {{ batch.assets }} 条素材 · {{ batch.findings }} 条信号 ·
+    P0 {{ batch.totals.P0 }} / P1 {{ batch.totals.P1 }} /
+    P2 {{ batch.totals.P2 }} / P3 {{ batch.totals.P3 }} ·
+    需处理 {{ batch.needs_action }} 条
+  </p>
+  <p class="muted" style="margin: 6px 0 0">
+    <a href="/demo/replay/{{ scenario.id }}?format=json">查看 JSON</a>
+    · <a href="/demo">返回演示列表</a>
+  </p>
+</div>
+
+<div class="panel">
+  {% for row in batch.rows %}
+  <div class="finding">
+    <div class="title">
+      {% if row.top_level %}<span class="badge {{ row.top_level }}">{{ row.top_level }}</span>{% endif %}
+      {{ row.title }}
+      <span class="muted">（P0 {{ row.counts.P0 }} / P1 {{ row.counts.P1 }} / P2 {{ row.counts.P2 }} / P3 {{ row.counts.P3 }}）</span>
+    </div>
+    <a class="btn" href="/demo/replay/{{ row.id }}">查看证据链</a>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

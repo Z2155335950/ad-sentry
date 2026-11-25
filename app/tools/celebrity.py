@@ -167,10 +167,12 @@ def recognize(
     timestamp: float,
 ) -> base.ToolResult:
     path = Path(frame_path)
-    mode = base.resolve_mode("celebrity")
+    mode = base.effective_mode("celebrity", asset_sha256, scene_index)
     faces = detect_faces(path) if mode == "live" else []
 
     def run() -> dict | None:
+        if mode == "demo":
+            return base.demo_entry("celebrity", asset_sha256, scene_index)
         if mode == "mock":
             return base.mock_entry("celebrity", asset_sha256, scene_index)
         if not faces:

@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import threading
 import time
@@ -135,12 +136,37 @@ def load_mock(tool: str) -> dict:
     if not path.exists():
         return {}
     try:
-        import json
-
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         logger.warning("mock fixture 读取失败 %s: %s", path, exc)
         return {}
+
+
+def demo_cache_path(tool: str, asset_sha256: str) -> Path:
+    """DEMO_MODE 的演示缓存：fixtures/cache/<tool>/<asset_sha256>.json（PROMPT §16）。"""
+    return Path(settings.fixtures_dir) / "cache" / tool / f"{asset_sha256}.json"
+
+
+def demo_entry(tool: str, asset_sha256: str, index: int | None = None) -> dict | None:
+    path = demo_cache_path(tool, asset_sha256)
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        logger.warning("演示缓存读取失败 %s: %s", path, exc)
+        return None
+    if index is None:
+        return data or None
+    section = data.get("scenes") or data.get("windows") or {}
+    return section.get(str(index))
+
+
+def effective_mode(tool: str, asset_sha256: str, index: int | None = None) -> str:
+    """演示缓存优先；缺失时才回落到 mock / live（PROMPT §16）。"""
+    if settings.demo_mode and demo_entry(tool, asset_sha256, index) is not None:
+        return "demo"
+    return resolve_mode(tool)
 
 
 def mock_entry(tool: str, asset_sha256: str, scene_index: int | None = None) -> dict | None:
@@ -239,7 +265,7 @@ class ToolRuntime:
             return ToolResult(tool=tool, status="error", mode=mode, error=str(exc)[:300])
 
         latency_ms = int((time.perf_counter() - started) * 1000)
-        cost = 0.0 if mode == "mock" else cost_usd
+        cost = 0.0 if mode in {"mock", "demo"} else cost_usd
         self.budget.spend(cost)
         breaker(tool).success()
         status = "empty" if not data else "ok"

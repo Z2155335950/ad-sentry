@@ -193,9 +193,11 @@ def detect(
     timestamp: float,
 ) -> base.ToolResult:
     path = Path(image_path)
-    mode = base.resolve_mode("logo")
+    mode = base.effective_mode("logo", asset_sha256, scene_index)
 
     def run() -> dict | None:
+        if mode == "demo":
+            return base.demo_entry("logo", asset_sha256, scene_index)
         if mode == "mock":
             return base.mock_entry("logo", asset_sha256, scene_index)
         data = _live_detect(path)

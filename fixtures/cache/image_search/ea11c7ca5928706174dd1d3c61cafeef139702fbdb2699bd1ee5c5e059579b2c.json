@@ -1,0 +1,18 @@
+{
+  "scenes": {
+    "0": {
+      "provider": "google_vision(mock)",
+      "matches": [
+        {
+          "url": "https://example-gallery.test/retro-poster",
+          "title": "Retro poster collection",
+          "match_type": "similar",
+          "domain_kind": "blog"
+        }
+      ],
+      "best_guess_labels": [
+        "poster"
+      ]
+    }
+  }
+}

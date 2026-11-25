@@ -14,6 +14,14 @@
   缓存 / `ToolCall` 记账；默认 mock，凭证齐全后 `TOOLS_MODE=auto` 接真。
 - **Phase 3 ✅** logo 三路投票（Vision / CLIP / OCR）、离线商标词表、平台政策 BM25 RAG；
   `data/watchlists/` 提供品牌词表、竞品词表与 24 条 TikTok/Meta 政策条款。
+- **Phase 4 ✅** 授权台账：授权书字段抽取、七态状态机、Campaign 投放上下文、人工挂接素材、
+  复核页台账面板；授权过期/地域不符等会把相关风险抬到 P1（只升不降）。
+- **Phase 5 ✅** 飞书接入：长连接（WebSocket）收图片/视频/文件 → 回执 → 建任务 →
+  风险卡片；`message_id` 幂等、签名与解密、可选多维表格留档；`FEISHU_MODE=mock` 可离线验收。
+- **Phase 6 ✅** Verifier 二次检索（低置信 → 裁剪放大重搜）、消融开关、评测集与
+  `make eval` 报告：11 条用例（干净 9 条），完整链路 P0/P1 召回 4/4、干净集误报 0/9。
+- **Phase 7 ✅** 演示模式：五场景离线回放、按素材键控的 demo 缓存、TTL 清理
+  （素材 / 抽取产物 / 孤儿授权文件）、Docker Compose（app + worker）。
 
 进展与未完成项见 [PROGRESS.md](PROGRESS.md)，决策记录见 [DECISIONS.md](DECISIONS.md)。
 
@@ -22,9 +30,12 @@
 ```bash
 python -m venv .venv
 .venv/Scripts/python -m pip install -e ".[dev]"   # Windows Git Bash
+.venv/Scripts/python -m pip install -e ".[feishu]"  # 可选：飞书长连接（lark-oapi）
 python scripts/make_fixture_image.py              # 生成测试图（一次性）
 python scripts/make_fixture_video.py              # 生成 15s 测试视频（一次性，含口播）
 python scripts/make_p2_fixtures.py                # 生成 Phase 2 风险演示视频 + mock（一次性）
+python scripts/make_p4_fixtures.py                # 生成三份合成授权书 PDF（一次性）
+python scripts/make_eval_set.py                   # 生成评测集与干净样本（一次性）
 ```
 
 启动服务：
@@ -44,10 +55,19 @@ python -m uvicorn app.main:app --reload --port 8000
 | `make verify-1` | 阶段验收入口（Phase 1，等价 `make p1`） |
 | `make verify-2` | 阶段验收入口（Phase 2，等价 `make p2`） |
 | `make verify-3` | 阶段验收入口（Phase 3：三个模块单测 + `p3_check.py`） |
+| `make verify-4` | 阶段验收入口（Phase 4：台账单测 + `p4_check.py`） |
+| `make verify-5` | 阶段验收入口（Phase 5：飞书单测 + `p5_check.py`） |
+| `make verify-6` | 阶段验收入口（Phase 6：等价 `make eval`） |
+| `make verify-7` | 阶段验收入口（Phase 7：清理/演示单测 + 五场景离线回放） |
 | `make p0` | 启动临时服务，上传样例图，断言 5 秒内产出 fixture 卡片 |
 | `make p1` | 上传 15s 视频，断言关键帧、OCR 文本、ASR 转写 JSON |
 | `make p2` | 上传植入素材，断言图搜 P0 / 名人 P1 / BGM P2；干净素材零 P0/P1 |
 | `make p3` | 商标词 / 政策 / logo 单测 + 上传 15s 视频，断言 logo P0、商标词 P1、干净素材零误报 |
+| `make p4` | 三份授权书状态（有效 / 过期 / 地域不符）+ 挂接素材 + 复核动作落库 |
+| `make p5` | 飞书事件 mock 回环：验签、幂等、回执、卡片、复核链接可打开 |
+| `make eval` | 跑评测集，生成 `eval_report.md` / `eval_report.json` 与消融表 |
+| `make demo` | 离线回放五个演示场景，打印现场 URL 与预期结果 |
+| `make cleanup` | 手动执行一次 TTL 清理 |
 | `make test` | pytest 全量单测 |
 | `make lint` | ruff 检查 |
 | `make run` | 开发服务器 |
@@ -101,22 +121,108 @@ Laplacian 清晰度优先）→ `ocr`（逐帧）。
 - **演示 mock**：`scripts/make_p3_fixtures.py` 为 `sample_15s.mp4` 写入第 2 镜的
   Vision / CLIP 命中（NIKE），与真实 OCR 命中构成三路证据。
 
+## 授权台账与复核页（Phase 4）
+
+- **授权书抽取**：PDF（PyMuPDF 文本层）、DOCX（解包 `word/document.xml`）、图片（OCR）。
+  扫描版 PDF 文本层为空时渲染成图片再 OCR。标签行解析 `授权方 / 授权类型 / 地域范围 /
+  媒介范围 / 生效日期 / 到期日期` 等字段；图片 OCR 的置信低于阈值，关键字段自动进
+  `needs_review`（待人工录入）。
+- **LLM 可选**：`LEDGER_LLM_ENABLED=true` 且装了 `pip install -e ".[llm]"` 时用
+  `claude-opus-5-5` 的 `messages.parse` 补空字段；失败自动回退规则解析，不影响主路径。
+- **状态机**：`effective | expiring_soon(≤30 天) | expired | out_of_territory |
+  out_of_media | out_of_scope | needs_review`。关键字段（授权类型 / 地域 / 起止日期）
+  缺失或置信 < 0.7 → `needs_review`，不参与判定。
+- **投放上下文**：`POST /api/assets/{id}/campaign` 登记 platform / market / 起止日期。
+  **没有 Campaign 时地域与媒介无法核验**，只按日期给状态并在界面提示补充投放信息。
+  地域支持别名归一（`SEA` / 东南亚 / 新加坡 等）。
+- **人工挂接**：`POST /api/licenses/{id}/link` 把授权记录挂到素材；挂接后按 Campaign
+  重算状态，并给授权类型覆盖到的风险类别补一条 `license` 证据。授权过期 / 地域不符 /
+  媒介不符 / 范围不符时把等级抬到 P1，**只升不降**——授权有效不会抹掉其他工具的发现。
+- **复核页**：`/review/{finding_id}?token=` 增加「授权台账」面板，可查看已挂接记录的
+  状态与原因、挂接未关联记录、登记或修改投放信息。
+- **验收素材**：`fixtures/licenses/` 三份合成授权书（已过期 / 地域不含东南亚 / 有效），
+  由 `scripts/make_p4_fixtures.py` 生成。
+
+## 飞书接入（Phase 5）
+
+- **接入方式**：默认长连接（WebSocket），本地无需公网地址；`FEISHU_LONG_CONNECTION=false`
+  时改走公网回调 `POST /api/feishu/event`（需 ngrok 之类的隧道）。两种方式共用
+  `app/feishu/events.py` 的同一条处理路径。
+- **链路**：`im.message.receive_v1` → 验 Token / 签名 → `message_id` 幂等 →
+  回执「已接收，预计 45 秒内返回风险卡片」→ 下载资源 → 建 Job → worker 完成后推送卡片。
+- **消息类型**：图片（`image_key`）、文件与视频（`file_key`）；其他类型回一句话提示后忽略。
+- **卡片**：复用 `pipeline/report.build_card`，含等级色、信号摘要、「查看证据链」按钮；
+  链接由 `PUBLIC_BASE_URL` + HMAC 签名 token 生成，默认 24h 有效。
+- **多维表格（可选）**：配置 `FEISHU_BITABLE_APP_TOKEN` / `FEISHU_BITABLE_TABLE_ID`
+  且应用有 `bitable:app` 权限时，任务完成后追加一条记录。
+- **离线验收**：`FEISHU_MODE=mock` 把外发内容写到 `data/feishu_outbox.jsonl`，
+  `make p5` 据此断言回执、卡片与复核链接。
+- **飞书侧配置**（缺一项都收不到消息）：权限 `im:resource` / `im:message` /
+  `im:message:send_as_bot`；事件订阅 `im.message.receive_v1`；开启机器人能力；
+  创建版本并发布；把机器人拉进测试群。
+- **依赖**：长连接需要 `pip install -e ".[feishu]"`（`lark-oapi`）；公网回调不需要。
+
+## Verifier 与评测（Phase 6）
+
+- **Verifier**（唯一 Agent 环节）：只对 `0.4 ≤ confidence < 0.7` 的版权图像 / logo 信号做
+  一次二次检索——bbox 外扩 20%（无 bbox 退化为整帧）→ 裁剪 → 2× 放大 → 同工具重搜。
+  置信提升才合并，并把这一步写进证据。单素材最多 `VERIFIER_MAX_CALLS` 次。
+- **消融开关**：`ABLATION_VERIFIER`、`ABLATION_PLANNER`（关闭后不做帧预算裁剪）、
+  `BASELINE_VLM_ONLY`（只由评测脚本读取）。主干仍是确定性 DAG，LLM 不参与工具选择。
+- **评测集**：`fixtures/eval.jsonl`，11 条（2 条植入 + 9 条干净，含对抗样本 `clean_bike`）。
+  冲刺模式限制 ≤12 条；逐条产生方式见 `scripts/make_eval_set.py`。
+- **匹配规则**：类别一致，且 ref 相同 / bbox IoU ≥ 0.3 / 时间重叠 ≥ 50% 之一。
+- **报告**：`make eval` 输出四组对照（纯 VLM 基线 / 无 Verifier / 完整 / 关闭 Planner），
+  含召回、精确、干净集误报、调用次数、成本、p50/p90，以及 Wilson 区间与局限说明。
+- 评测集与抽取缓存都可离线复现；报告文件本身已加入 `.gitignore`。
+
+## 演示模式与 TTL 清理（Phase 7）
+
+- **演示缓存**：`DEMO_MODE=true` 时工具优先读 `fixtures/cache/<tool>/<sha256>.json`
+  （按素材 + 分镜/窗口键控），缓存缺失才回落 `TOOLS_MODE` 的 mock / live。
+  `scripts/make_demo_cache.py` 从现有 flat mock 生成该目录。
+- **回放**：`GET /demo` 列出五个场景，`GET /demo/replay/{id}` 打开结果页，
+  加 `?format=json` 取结构化结果。场景：高风险视频全链路、证据链与授权到期、
+  替换后重检通过、干净 AI 人像、历史素材批量巡检。
+  回放数据幂等写入数据库，卡片与复核页直接可用；`DEMO_MODE=false` 时接口返回 404。
+- **现场**：`DEMO_MODE=true make run`（或写进 `.env`）；`make demo` 会离线验证五个场景
+  并打印 `PUBLIC_BASE_URL` 下的现场 URL。
+- **TTL**：上传素材默认保留 24h（`ASSET_TTL_HOURS`），清理任务每小时跑一次
+  （`CLEANUP_INTERVAL_SECONDS`），删除素材记录、关联 Finding/Evidence/Detection/Job、
+  素材文件、`extracted/<sha256>/` 与未被引用的旧授权文件；`fixtures/` 演示素材不删。
+- **部署**：`docker compose up --build`。app 服务设 `WORKER_IN_APP=false`，worker 服务
+  运行 `python -m app.workers.run`，两者共用 `./data`。
+
 ## 配置
 
 所有键见 [.env.example](.env.example)。密钥只放 `.env`，不进仓库。凭证清单见 PROMPT.md §4 与实施记录。
 
 ## 已知限制
 
-- 工具层默认 mock；三个 live 适配器尚未用真实凭证验证，切 `TOOLS_MODE=auto` 前先用单素材对照。
+- 工具层默认 mock；ACRCloud 已用真实凭证验证（中国区），Google Vision 与 AWS Rekognition
+  仍待验证，切 `TOOLS_MODE=auto` 前先用单素材对照。
 - 品牌词表是 56 条演示子集（PROMPT 目标 ≥500）；仅 Nike 注册号经核对，其余无注册信息、
   最高 P2。政策条款为演示摘录，对外引用前须逐条核对官方原文与生效日期。
-- logo 的 CLIP 向量库未随仓库分发（需品牌 logo 图片与 `.[clip]` 依赖）；VLM 复核在 Phase 6。
-- 商标词 P0 需要 Campaign 上下文（Phase 4 接入），当前最高 P1；政策信号统一 P3。
+- logo 的 CLIP 向量库未随仓库分发（需品牌 logo 图片与 `.[clip]` 依赖）；
+  VLM 候选品牌复核尚未接入。
+- 商标词 P0 需要「high-tier 品牌 + 注册信息 + 同品类上下文」，而 Campaign 目前只有
+  platform / market / 起止日期、没有品类字段，所以商标词仍最高 P1；政策信号统一 P3。
 - 干净素材 `clean_ai.png` 当前只有 1 条 P3（水印「豆包AI生成」触发的 AI 标注义务提示），
   无 P0/P1；`TOOLS_ENABLED=false` 时才回退 `fixtures/fake_findings.json`（骨架验收与单测使用）。
-- 名人 live 只送第一张人脸；无授权台账，BGM 命中统一 P2（Phase 4 接入 license 后才升降级）。
+- 名人 live 只送第一张人脸。BGM / 版权图像的升降级依赖人工把授权记录挂到素材
+  （Phase 4 已支持）；未挂接时仍按原工具规则定级。
+- 授权书的字段抽取目前针对固定标签行模板；自由格式 / 手写 / 印章文件需要
+  `LEDGER_LLM_ENABLED` 或人工补录。
+- 飞书长连接尚未用真实凭证验证（`FEISHU_APP_ID` / `FEISHU_APP_SECRET` 未配置），
+  `make p5` 走 mock 回环；多维表格未配置；卡片为 card 1.0 结构。
+- 复核链接指向 `PUBLIC_BASE_URL`，演示前需改成评委可访问的地址。
+- 评测集只有 11 条（冲刺约束），整体 n<15，precision/recall 只作计数参考，附 Wilson 区间。
+- Verifier 在 mock 下不会提升置信（同一分镜命中同一缓存），真实收益需 live 凭证；
+  纯 VLM 基线是缓存结果，不是实时调用。
 - ASR 首次运行需要网络下载模型；离线环境需提前准备 `ASR_MODEL_DIR`。
-- 飞书接入、logo/商标/政策、评测、演示模式在后续 Phase 实现。
+- 本机无 Docker，`Dockerfile` / `docker-compose.yml` 未实际构建运行；只做了静态校验。
+- `batch_scan` 是预置结果的汇总回放，不是对历史素材库重跑流水线；演示素材无 TTL。
+- app 与 worker 共用 SQLite（WAL），仅支持单机；多 worker 需把任务认领改为条件更新。
 - Windows 上 make 通过 winget 安装（ezwinports.make 4.4.1）；未刷新 PATH 的 shell 用
   `.venv` 内的 python 执行等价命令。
 

@@ -107,8 +107,10 @@ def _live_identify(window_path: Path) -> dict:
     ):
         raise base.ToolUnavailable("未配置 ACRCloud 凭证")
     timestamp = str(int(time.time()))
+    sample = window_path.read_bytes()
     data = {
         "access_key": settings.acrcloud_access_key,
+        "sample_bytes": str(len(sample)),
         "data_type": "audio",
         "signature_version": "1",
         "timestamp": timestamp,
@@ -116,14 +118,13 @@ def _live_identify(window_path: Path) -> dict:
             settings.acrcloud_access_key, settings.acrcloud_access_secret, timestamp
         ),
     }
-    with open(window_path, "rb") as handle:
-        files = {"sample": (window_path.name, handle, "audio/wav")}
-        response = httpx.post(
-            f"https://{settings.acrcloud_host}/v1/identify",
-            data=data,
-            files=files,
-            timeout=settings.timeout_music,
-        )
+    files = {"sample": (window_path.name, sample, "audio/wav")}
+    response = httpx.post(
+        f"https://{settings.acrcloud_host}/v1/identify",
+        data=data,
+        files=files,
+        timeout=settings.timeout_music,
+    )
     response.raise_for_status()
     return normalize_response(response.json())
 
@@ -138,13 +139,15 @@ def identify(
     """返回 (窗口元数据, 每个窗口的工具结果)。"""
     windows = window_plan(duration)
     results: list[base.ToolResult] = []
-    mode = base.resolve_mode("music")
     source = Path(audio_path)
 
     for window in windows:
         index = window["index"]
+        mode = base.effective_mode("music", asset_sha256, index)
 
-        def run(window=window, index=index) -> dict | None:
+        def run(window=window, index=index, mode=mode) -> dict | None:
+            if mode == "demo":
+                return base.demo_entry("music", asset_sha256, index)
             if mode == "mock":
                 entry = base.mock_entry("music", asset_sha256)
                 if not entry:

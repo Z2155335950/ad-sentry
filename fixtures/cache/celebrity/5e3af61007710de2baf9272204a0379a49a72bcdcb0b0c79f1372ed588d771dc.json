@@ -1,0 +1,15 @@
+{
+  "scenes": {
+    "1": {
+      "provider": "aws_rekognition(mock)",
+      "celebrities": [
+        {
+          "name": "Demo Celebrity",
+          "confidence": 0.97,
+          "bbox": "0.390,0.150,0.570,0.390"
+        }
+      ],
+      "unrecognized_faces": 0
+    }
+  }
+}

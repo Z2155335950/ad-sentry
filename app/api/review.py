@@ -15,6 +15,7 @@ from sqlmodel import Session, select
 
 from app.config import settings
 from app.db import get_session
+from app.ledger import gate
 from app.models import (
     CATEGORY_LABELS,
     Asset,
@@ -61,9 +62,13 @@ def verify_token(finding_id: int, token: str) -> bool:
     return hmac.compare_digest(_sign(f"{finding_id}:{expires_at}"), signature)
 
 
+def make_review_url_for(base_url: str, finding_id: int) -> str:
+    """飞书长连接没有请求头可推导地址，必须用 PUBLIC_BASE_URL。"""
+    return f"{base_url.rstrip('/')}/review/{finding_id}?token={make_token(finding_id)}"
+
+
 def make_review_url(request: Request, finding_id: int) -> str:
-    base = str(request.base_url).rstrip("/")
-    return f"{base}/review/{finding_id}?token={make_token(finding_id)}"
+    return make_review_url_for(str(request.base_url), finding_id)
 
 
 def _get_finding_or_403(session: Session, finding_id: int, token: str) -> Finding:
@@ -94,6 +99,7 @@ def review_page(
     evidences = session.exec(
         select(Evidence).where(Evidence.finding_id == finding.id).order_by(Evidence.id)
     ).all()
+    ledger = gate.ledger_context(session, finding.asset_id) if asset else None
     return templates.TemplateResponse(
         request,
         "review.html",
@@ -101,6 +107,7 @@ def review_page(
             "finding": finding,
             "asset": asset,
             "evidences": evidences,
+            "ledger": ledger,
             "category_label": CATEGORY_LABELS.get(finding.category, finding.category),
             "review_status_label": REVIEW_STATUS_LABELS.get(
                 finding.review_status, finding.review_status
