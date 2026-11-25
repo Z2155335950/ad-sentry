@@ -1,8 +1,7 @@
-"""Job 队列与占位流水线。
+"""Job 队列：认领任务 → 抽取层（Phase 1）→ 占位融合层 → 完成。
 
-Phase 0 的流水线不调用任何外部工具：把 fixtures/fake_findings.json 当作抽取/工具层
-的输出写入 Detection / Finding / Evidence，用于跑通「上传 → 任务 → 卡片 → 复核」骨架。
-后续 Phase 会用真实流水线替换 _apply_fixture 的调用点，业务接口保持不变。
+Phase 0 的占位融合把 fixtures/fake_findings.json 当作工具层输出写入 Detection /
+Finding / Evidence；真实工具适配器在 Phase 2–3 替换这里的调用点，业务接口保持不变。
 """
 
 from __future__ import annotations
@@ -25,7 +24,7 @@ from app.models import (
     ReviewStatus,
     utcnow,
 )
-from app.pipeline import fuse
+from app.pipeline import extract, fuse
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +32,15 @@ logger = logging.getLogger(__name__)
 def _load_fixture() -> dict:
     path = settings.fixtures_dir / "fake_findings.json"
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _set_stage(job_id: int, stage: str) -> None:
+    with Session(engine) as session:
+        job = session.get(Job, job_id)
+        if job is not None:
+            job.stage = stage
+            session.add(job)
+            session.commit()
 
 
 def _dedupe_key(item: dict) -> str:
@@ -106,7 +114,7 @@ def claim_next_job() -> int | None:
         if job is None:
             return None
         job.status = JobStatus.running.value
-        job.stage = "fixture"
+        job.stage = "extract" if settings.extract_enabled else "fuse"
         job.started_at = utcnow()
         session.add(job)
         session.commit()
@@ -123,6 +131,32 @@ def process_job(job_id: int) -> None:
             asset = session.get(Asset, job.asset_id)
             if asset is None:
                 raise RuntimeError(f"asset {job.asset_id} 不存在")
+
+            if settings.extract_enabled:
+                job.stage = "extract"
+                session.add(job)
+                session.commit()
+
+                result = extract.extract_asset(
+                    asset,
+                    on_stage=lambda stage: _set_stage(job_id, f"extract:{stage}"),
+                )
+                media = result.get("media") or {}
+                if media.get("duration") is not None:
+                    asset.duration = float(media["duration"])
+                if media.get("width") and media.get("height"):
+                    asset.width = int(media["width"])
+                    asset.height = int(media["height"])
+                session.add(asset)
+                session.add(
+                    Detection(
+                        job_id=job.id,
+                        asset_id=asset.id,
+                        tool="extract",
+                        raw=extract.summary(result),
+                    )
+                )
+                session.commit()
 
             job.stage = "fuse"
             session.add(job)

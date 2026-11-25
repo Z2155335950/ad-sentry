@@ -2,6 +2,43 @@
 
 按时间倒序，「决策 / 原因 / 影响」。与 PROMPT.md 冲突时以 PROMPT 为准。
 
+## D014 抽取产物落盘，不新增数据表
+
+- 决策：抽取结果写 `DATA_DIR/extracted/<sha256>/extraction.json`（关键帧同目录 `frames/`），
+  DB 里只写一条 `Detection(tool="extract", raw=摘要)`；通过 `GET /api/jobs/{id}/extraction` 读取。
+- 原因：PROMPT §6 锁定了数据模型；帧/OCR/转写是工具的输入而不是 Finding，放 JSON 便于
+  工具层与评测复用，也避免大字段进 SQLite。
+- 影响：TTL 清理（Phase 7）要同时删 `extracted/<sha256>/`；DEMO_MODE 缓存可复用这些文件。
+
+## D013 `EXTRACT_ENABLED` 开关隔离阶段验收
+
+- 决策：默认 true；`scripts/p0_check.py` 与 `tests/conftest.py` 设为 false。
+- 原因：Phase 0 验收度量「上传 → 卡片」5 秒预算，OCR/ASR 首次模型加载会污染它；
+  抽取链路由 `make p1` 与抽取层单测单独覆盖。
+- 影响：新阶段新增端到端检查时，明确它验证的是哪段链路，不要互相借环境变量。
+
+## D012 媒体/OCR/ASR 依赖的降级路径
+
+- 决策：
+  - ffmpeg：系统 PATH → `FFMPEG_BIN` → `imageio-ffmpeg` 自带二进制；ffprobe 缺失时解析
+    `ffmpeg -i` 的 stderr 取元数据。
+  - OCR：`OCR_ENGINE=auto` 先试 PaddleOCR，未安装则用 rapidocr-onnxruntime（同一套 PP-OCR
+    模型），都不可用则 status=unavailable，不抛断流水线。
+  - ASR：faster-whisper small / int8 / CPU；权重下载端点默认 `https://hf-mirror.com`
+    （本机实测 huggingface.co 不可达），可用 `HF_ENDPOINT=` 清空改回官方。
+- 原因：本机无系统 ffmpeg、paddlepaddle 安装体积大；验收必须在当前机器可复现。
+  rapidocr 与 PaddleOCR 用的是同一份 PP-OCR 模型，只是推理框架不同。
+- 影响：装好 PaddleOCR 后无需改代码，auto 模式自动优先它；OCR 结果结构差异收敛在
+  `app/pipeline/ocr.py` 的归一化层，业务代码只消费 OcrLine。
+
+## D011 分镜/关键帧策略
+
+- 决策：PySceneDetect（ContentDetector 27 / min_scene_len 15）不可用时按时长均匀分段；
+  每镜最多 3 帧、全片 ≤ `MAX_FRAMES`（默认 12）；镜内按 Laplacian 方差排序，场景间轮流取帧，
+  pHash 汉明距离 ≤6 去重；帧图片统一 JPEG 存 `extracted/<sha>/frames/`。
+- 原因：PROMPT §8.1 的帧预算与清晰度优先；轮流取帧避免长视频只覆盖开头。
+- 影响：后续图搜/logo 检测直接消费 `frames[].path` 与 `phash`，不再重复抽帧。
+
 ## D010 阶段验收入口使用 `make verify-N`
 
 - 决策：每个 Phase 增加 `verify-N` 目标（N 从 0 起），`verify-0` 委托给 PROMPT 规定的 `p0`。

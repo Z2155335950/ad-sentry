@@ -59,6 +59,24 @@ class Settings(BaseSettings):
     timeout_celebrity: float = 8.0
     timeout_llm: float = 30.0
 
+    # 抽取层（Phase 1）。extract_enabled=false 时流水线跳过抽帧/OCR/ASR，
+    # 用于 Phase 0 验收与不需要抽取的测试。
+    extract_enabled: bool = True
+    ffmpeg_bin: str = ""
+    ffprobe_bin: str = ""
+    ocr_engine: str = "auto"  # auto | paddle | rapidocr | none
+    ocr_lang: str = "ch"
+    asr_enabled: bool = True
+    asr_model_size: str = "small"
+    asr_compute_type: str = "int8"
+    asr_model_dir: Path = Path("./data/models")
+    # 为空用官方端点；国内网络默认走 hf-mirror（只影响 whisper 权重下载）
+    hf_endpoint: str = "https://hf-mirror.com"
+    scene_threshold: float = 27.0
+    scene_min_len: int = 15
+    max_frames: int = 12
+    frame_workers: int = 4
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -49,6 +49,13 @@ async function pollJob(jobId, startedAt) {
       renderResult(data, ((performance.now() - startedAt) / 1000).toFixed(1));
       return;
     }
+    const stage = data.job.stage || '';
+    if (stage.startsWith('extract')) {
+      const step = stage.split(':')[1];
+      setStatus(step ? `素材解析中（${step}）…` : '素材解析中…');
+    } else {
+      setStatus('已受理，检测中…');
+    }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   setStatus('处理超时，请刷新重试');

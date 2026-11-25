@@ -13,6 +13,7 @@ from app.api.review import DISCLAIMER, make_review_url
 from app.config import settings
 from app.db import get_session
 from app.models import LEVEL_ORDER, Asset, Evidence, Finding, Job
+from app.pipeline import extract
 from app.pipeline.ingest import UnsupportedMedia, store_asset
 from app.pipeline.report import build_card
 
@@ -91,6 +92,22 @@ def job_status(
     return {
         "job": job.model_dump(),
         "asset": asset.model_dump() if asset else None,
+        "extraction_available": bool(asset and extract.has_extraction(asset.sha256)),
         "findings": payload,
         "card": card,
     }
+
+
+@router.get("/api/jobs/{job_id}/extraction")
+def job_extraction(job_id: int, session: Session = Depends(get_session)):
+    """抽取层产物（帧、OCR、转写），供工具层调试与后续证据链使用。"""
+    job = session.get(Job, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    asset = session.get(Asset, job.asset_id)
+    if asset is None:
+        raise HTTPException(status_code=404, detail="素材不存在")
+    data = extract.load_extraction(asset.sha256)
+    if data is None:
+        raise HTTPException(status_code=404, detail="抽取结果尚未生成")
+    return data

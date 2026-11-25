@@ -4,14 +4,19 @@ else
 PYTHON ?= .venv/Scripts/python.exe
 endif
 
-.PHONY: p0 verify-0 test lint run
+.PHONY: p0 p1 verify-0 verify-1 test lint run
 
 # Phase 0 验收：上传样例图，5 秒内产出 fixture 卡片
 p0:
 	$(PYTHON) scripts/p0_check.py
 
-# 阶段验收入口：make verify-N（N=0 对应 Phase 0，与 make p0 等价）
+# Phase 1 验收：15 秒视频输出关键帧、OCR 文本、ASR 转写 JSON
+p1:
+	$(PYTHON) scripts/p1_check.py
+
+# 阶段验收入口：make verify-N（N 对应 Phase N）
 verify-0: p0
+verify-1: p1
 
 test:
 	$(PYTHON) -m pytest

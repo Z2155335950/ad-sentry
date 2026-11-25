@@ -63,6 +63,10 @@ def main() -> None:
     env = os.environ.copy()
     env["DATABASE_URL"] = f"sqlite:///{db_path.as_posix()}"
     env["APP_HMAC_SECRET"] = "p0-check-secret"
+    # Phase 0 验收度量的是「上传 → 卡片」骨架；抽取层由 Phase 1 的 p1_check 覆盖，
+    # 这里关闭以免 OCR/ASR 模型加载时间污染 5 秒预算。
+    env["EXTRACT_ENABLED"] = "false"
+    env["PYTHONUTF8"] = "1"
 
     process = subprocess.Popen(
         [
