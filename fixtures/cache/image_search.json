@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "note": "Phase 2 mock：按素材 sha256 + 分镜索引键控，由 make_p2_fixtures.py 生成",
+  "assets": {
+    "5e3af61007710de2baf9272204a0379a49a72bcdcb0b0c79f1372ed588d771dc": {
+      "scenes": {
+        "0": {
+          "provider": "google_vision(mock)",
+          "matches": [
+            {
+              "url": "https://www.shutterstock.com/image-photo/demo-123456",
+              "title": "Premium Stock Photo - Demo",
+              "match_type": "full",
+              "domain_kind": "stock"
+            },
+            {
+              "url": "https://example-blog.test/design/inspiration",
+              "title": "Design inspiration roundup",
+              "match_type": "visually_similar",
+              "domain_kind": "blog"
+            }
+          ],
+          "best_guess_labels": [
+            "stock photo"
+          ]
+        }
+      }
+    }
+  }
+}

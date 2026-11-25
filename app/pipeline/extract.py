@@ -36,6 +36,13 @@ def has_extraction(sha256: str) -> bool:
     return extraction_json_path(sha256).exists()
 
 
+def frame_file(asset: Asset, frame: dict) -> Path:
+    """关键帧在磁盘上的位置：图片直接用素材文件，视频在抽取目录的 frames/。"""
+    if asset.media_type == MediaType.image.value:
+        return Path(settings.data_dir) / frame["path"]
+    return extraction_dir(asset.sha256) / "frames" / frame["path"]
+
+
 def load_extraction(sha256: str) -> dict | None:
     path = extraction_json_path(sha256)
     if not path.exists():

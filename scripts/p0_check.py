@@ -66,6 +66,8 @@ def main() -> None:
     # Phase 0 验收度量的是「上传 → 卡片」骨架；抽取层由 Phase 1 的 p1_check 覆盖，
     # 这里关闭以免 OCR/ASR 模型加载时间污染 5 秒预算。
     env["EXTRACT_ENABLED"] = "false"
+    # Phase 0 只验证骨架；工具层由 p2_check 覆盖，避免外部信号改变 fixture 断言。
+    env["TOOLS_ENABLED"] = "false"
     env["PYTHONUTF8"] = "1"
 
     process = subprocess.Popen(

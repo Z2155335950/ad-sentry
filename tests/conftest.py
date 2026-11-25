@@ -14,6 +14,8 @@ os.environ["APP_HMAC_SECRET"] = "test-secret"
 os.environ["FIXTURES_DIR"] = str(ROOT / "fixtures")
 # 单测不跑真实 OCR/ASR/ffmpeg；抽取层有独立单测与 p1 端到端验收
 os.environ["EXTRACT_ENABLED"] = "false"
+# 骨架测试依赖 fixtures/fake_findings.json；工具层有独立单测与 p2 端到端验收
+os.environ["TOOLS_ENABLED"] = "false"
 
 
 def sample_image_bytes() -> bytes:

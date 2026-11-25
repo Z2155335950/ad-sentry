@@ -23,3 +23,16 @@ def highest_level(levels: list[str]) -> str | None:
     if not valid:
         return None
     return min(valid, key=LEVEL_ORDER.__getitem__)
+
+
+def dedupe_signals(signals: list[dict]) -> list[dict]:
+    """同类别同参照物只保留证据最完整（等级最高）的一条（PROMPT §11）。"""
+    chosen: dict[str, dict] = {}
+    for signal in signals:
+        key = signal.get("dedupe_key") or (
+            f"{signal['category']}:{signal.get('suggestion', '')[:40]}"
+        )
+        current = chosen.get(key)
+        if current is None or LEVEL_ORDER[signal["level"]] < LEVEL_ORDER[current["level"]]:
+            chosen[key] = {**signal, "dedupe_key": key}
+    return list(chosen.values())

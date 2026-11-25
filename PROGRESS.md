@@ -9,6 +9,48 @@
   Phase 6 评测样本；OCR 可读出「豆包AI生成」水印。
 - 用户提供 `hero.mp4`（13.1s 真人自拍，普通人像）：按决定**仅本地使用**，
   已加入 `.gitignore`，仅作本地负例（涉及真实个人面部，不入提交材料）。
+- `fixtures/media/risk_ad_10s.mp4`（合成，Phase 2）：10s 三分镜，植入图库照片 / 合成人像 /
+  合成旋律；配套 mock 在 `fixtures/cache/`，见 [fixtures/README.md](fixtures/README.md)。
+
+## Phase 2（2026-11-25）✅
+
+**验收**：`make verify-2`（等价 `make p2` / `python scripts/p2_check.py`）
+
+- 结果：通过。`risk_ad_10s.mp4` 上传到完成 **8.12s**（ASR 关闭；OCR 模型已缓存），命中
+  `copyright_image=P0`（Shutterstock full match）、`celebrity=P1`（合成人像）、`bgm=P2`
+  （示例曲目）；卡片标题「P0 · 高风险信号 | 3 条信号」，页脚免责声明齐全。
+- 干净素材 `clean_ai.png`：**0 条信号**，无 P0/P1、无公众人物误报。
+- `ToolCall` 记账：image_search 5 次、celebrity 4 次、music 1 次，mock 成本 $0。
+- `pytest -q`：**49 passed**；ruff 全绿；`make verify-0`、`make verify-1` 回归通过。
+
+**完成项**
+
+- 工具运行时（`app/tools/base.py`）：每 Job 预算、熔断（3 次/60s → 60s）、live 结果缓存、
+  `ToolCall` 记账；mock 不计费。`TOOLS_MODE=mock|auto|live|off`。
+- 版权图像（`websearch.py`）：Vision WEB_DETECTION 响应归一化、图库/电商/社交/博客域名分类、
+  定级规则（full/partial + 图库 → P0；未知来源匹配页 → P1；仅相似 → P2）；无凭证降级。
+- BGM（`music.py`）：头/中/尾 10s 窗口、ACRCloud HMAC-SHA1 签名、code 1001 → no_match；
+  识别到曲目 → P2「请核对授权」，全窗口未识别 → P2「未知音乐」。
+- 公众人物（`celebrity.py`）：Haar 检测 + 人脸裁剪后外发、AWS SigV4、只落
+  姓名/置信度/bbox/时间戳；命中 ≥0.80 → P1，附 Rekognition 参照记录。
+- 编排与融合：`pipeline/detect.py` 确定性 DAG（图搜 → 名人 → BGM），按分镜轮流选帧；
+  `fuse.dedupe_signals` 同参照物取最高等级；`queue.py` 工具层失败只降级、不拖垮 Job。
+- 素材与验收：`scripts/make_p2_fixtures.py` 生成演示视频 + 三个 mock JSON；
+  `scripts/p2_check.py`、Makefile `p2`/`verify-2`、26 个新增单测。
+
+**未完成 / 已知限制**
+
+- 三个 live 适配器均**未用真实凭证验证**：Google Vision（API key / 服务账号）、ACRCloud、
+  AWS Rekognition（手写 SigV4）。凭证到位后先跑单素材对照，再切 `TOOLS_MODE=auto`。
+- 服务账号鉴权需 `pip install -e ".[vision]"`（google-auth）；API key 路径无额外依赖。
+- 名人 live 只送第一张人脸的裁剪；多人画面会漏检其余人脸（Phase 6 Verifier 再补）。
+- 未识别 BGM 的「高价值信号」只在 live 明确 no_match 时产出；mock 缺 fixture 不编造。
+- 无授权台账：BGM 命中统一 P2，不判断过期/地域（Phase 4 接入 license 证据后才能升 P0/P1）。
+- pHash 去重后本素材只选到 4 帧；图搜/名人帧预算仍受 `MAX_FRAMES=12` 与
+  `TOOL_*_FRAMES` 双重约束。
+
+**下一步**：Phase 3 —— logo 库 + 商标词表 + 政策 RAG，
+验收 `make p3`：三个模块单测全绿（植入「Nike」命中、`bike` 不误报、政策条款引用带生效日期）。
 
 ## Phase 1（2026-11-25）✅
 

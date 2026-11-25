@@ -32,6 +32,8 @@ dependencies = [
 dev = ["pytest>=8.2", "ruff>=0.5"]
 # 可选：优先使用 PaddleOCR（PROMPT 锁定栈）；装不上时 auto 模式自动用 rapidocr
 paddle = ["paddleocr>=2.7", "paddlepaddle>=2.6"]
+# 可选：Google Vision 用服务账号 JSON 鉴权时需要；用 GOOGLE_VISION_API_KEY 则不需要
+vision = ["google-auth>=2.30"]
 
 [tool.setuptools.packages.find]
 include = ["app*"]

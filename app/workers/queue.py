@@ -1,7 +1,7 @@
-"""Job 队列：认领任务 → 抽取层（Phase 1）→ 占位融合层 → 完成。
+"""Job 队列：认领任务 → 抽取层（Phase 1）→ 工具层（Phase 2）→ 融合 → 完成。
 
-Phase 0 的占位融合把 fixtures/fake_findings.json 当作工具层输出写入 Detection /
-Finding / Evidence；真实工具适配器在 Phase 2–3 替换这里的调用点，业务接口保持不变。
+真实工具适配器在 Phase 2 接入；`TOOLS_ENABLED=false` 时回退到 Phase 0 的
+fixtures/fake_findings.json，用于骨架验收与不需要外部信号的测试。
 """
 
 from __future__ import annotations
@@ -24,7 +24,8 @@ from app.models import (
     ReviewStatus,
     utcnow,
 )
-from app.pipeline import extract, fuse
+from app.pipeline import detect, extract, fuse
+from app.tools.base import ToolRuntime
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,18 @@ def _dedupe_key(item: dict) -> str:
 
 
 def _apply_fixture(session: Session, job: Job, asset: Asset, fixture: dict) -> None:
-    for item in fixture.get("findings", []):
+    _persist_signals(session, job, asset, fixture.get("findings", []), default_tool="fixture")
+
+
+def _persist_signals(
+    session: Session,
+    job: Job,
+    asset: Asset,
+    items: list[dict],
+    *,
+    default_tool: str,
+) -> None:
+    for item in items:
         key = _dedupe_key(item)
         existing = session.exec(
             select(Finding).where(Finding.asset_id == asset.id, Finding.dedupe_key == key)
@@ -71,10 +83,10 @@ def _apply_fixture(session: Session, job: Job, asset: Asset, fixture: dict) -> N
             Detection(
                 job_id=job.id,
                 asset_id=asset.id,
-                tool=item.get("tool", "fixture"),
+                tool=item.get("tool", default_tool),
                 raw=item,
                 confidence=item.get("confidence"),
-                cost_usd=0.0,
+                cost_usd=float(item.get("cost_usd") or 0.0),
             )
         )
         finding = Finding(
@@ -123,7 +135,6 @@ def claim_next_job() -> int | None:
 
 def process_job(job_id: int) -> None:
     try:
-        fixture = _load_fixture()
         with Session(engine) as session:
             job = session.get(Job, job_id)
             if job is None:
@@ -132,16 +143,17 @@ def process_job(job_id: int) -> None:
             if asset is None:
                 raise RuntimeError(f"asset {job.asset_id} 不存在")
 
+            extraction_result = None
             if settings.extract_enabled:
                 job.stage = "extract"
                 session.add(job)
                 session.commit()
 
-                result = extract.extract_asset(
+                extraction_result = extract.extract_asset(
                     asset,
                     on_stage=lambda stage: _set_stage(job_id, f"extract:{stage}"),
                 )
-                media = result.get("media") or {}
+                media = extraction_result.get("media") or {}
                 if media.get("duration") is not None:
                     asset.duration = float(media["duration"])
                 if media.get("width") and media.get("height"):
@@ -153,16 +165,32 @@ def process_job(job_id: int) -> None:
                         job_id=job.id,
                         asset_id=asset.id,
                         tool="extract",
-                        raw=extract.summary(result),
+                        raw=extract.summary(extraction_result),
                     )
                 )
                 session.commit()
 
-            job.stage = "fuse"
-            session.add(job)
-            session.commit()
+            if settings.tools_enabled and extraction_result is not None:
+                job.stage = "tools"
+                session.add(job)
+                session.commit()
 
-            _apply_fixture(session, job, asset, fixture)
+                runtime = ToolRuntime(session, job.id)
+                signals = detect.run(
+                    asset,
+                    extraction_result,
+                    runtime,
+                    on_stage=lambda stage: _set_stage(job_id, f"tools:{stage}"),
+                )
+                _persist_signals(session, job, asset, signals, default_tool="tool")
+                logger.info(
+                    "job %s 工具层产出 %d 条信号，成本 $%.4f",
+                    job_id,
+                    len(signals),
+                    runtime.budget.spent_usd,
+                )
+            else:
+                _apply_fixture(session, job, asset, _load_fixture())
 
             job.status = JobStatus.done.value
             job.stage = "done"

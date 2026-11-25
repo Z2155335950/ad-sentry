@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     # Google Cloud Vision
     google_application_credentials: str = ""
     google_cloud_project: str = ""
+    # API key 与 service account 二选一；都没有时图搜降级，不阻塞
+    google_vision_api_key: str = ""
 
     # ACRCloud
     acrcloud_host: str = ""
@@ -76,6 +78,16 @@ class Settings(BaseSettings):
     scene_min_len: int = 15
     max_frames: int = 12
     frame_workers: int = 4
+
+    # 工具层（Phase 2）。mock 读 fixtures/cache/<tool>.json；live 走真实 API；
+    # auto 在凭证齐全时走 live，否则回 mock（PROMPT §18：先 mock 再接真）。
+    tools_enabled: bool = True
+    tools_mode: str = "mock"
+    tool_image_frames: int = 6
+    tool_celebrity_frames: int = 3
+    tool_music_windows: int = 3
+    music_window_seconds: float = 10.0
+    celebrity_min_confidence: float = 0.80
 
 
 @lru_cache

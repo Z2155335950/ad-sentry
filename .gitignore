@@ -9,7 +9,6 @@ dist/
 .env
 data/
 !data/watchlists/
-fixtures/cache/
 eval_report.md
 
 # 用户提供的真人素材：仅本地使用，不入库（见 fixtures/README.md）

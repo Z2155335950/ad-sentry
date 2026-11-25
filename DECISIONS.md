@@ -2,6 +2,50 @@
 
 按时间倒序，「决策 / 原因 / 影响」。与 PROMPT.md 冲突时以 PROMPT 为准。
 
+## D020 未识别 BGM 只在有明确 no_match 时产出
+
+- 决策：live 模式下 ACRCloud `code=1001` 记为 `no_match`；只有所有窗口都明确 no_match
+  且没有任何识别结果时，才产出「未知音乐」P2。mock fixture 缺失时工具返回 empty，不编造。
+- 原因：§8.2 把「未知音乐」当作高价值信号，但必须与「mock 没数据」区分开，否则任何素材
+  都会被塞一条 P2。
+- 影响：新增 mock 素材时要么给窗口结果，要么保持空；不要用默认 no_match 兜底。
+
+## D019 `fixtures/cache/` 入库
+
+- 决策：移除 `.gitignore` 里的 `fixtures/cache/`；Phase 2 mock JSON 由脚本生成并提交。
+- 原因：§16/§18 要求演示缓存可离线复现且不含密钥；忽略该目录会让 `make p2` 在新环境失效。
+- 影响：重新生成 `risk_ad_10s.mp4` 会改变 sha256，需重跑 `make_p2_fixtures.py` 同步 mock。
+
+## D018 名人信号的参照物与隐私边界
+
+- 决策：celebrity P1 的锚点证据是 `kind=reference, ref_record_id=rekognition:<name>`
+  （识别服务记录），同时附 bbox 与时间戳；live 只上传 Haar 检测到的人脸裁剪（外扩 20%），
+  库内只落姓名 / 置信度 / bbox / 时间戳。
+- 原因：§2 要求 P0/P1 至少一条参照物证据，§8.4 要求先裁人脸再外发且不落人脸数据。
+- 影响：live 未检测到人脸时不调用、不计费；mock 不做人脸门控（合成人像无法保证被级联检出）。
+
+## D017 工具层统一运行时
+
+- 决策：`app/tools/base.py::ToolRuntime` 统一处理每 Job 预算（默认 `$0.25`）、熔断
+  （60s 内 3 次失败 → 打开 60s）、live 结果 `ToolCache`、每次调用写 `ToolCall`；
+  mock 模式不计费、不写缓存。
+- 原因：§2/§7/§14 要求超时、熔断、成本记账与可 mock；收敛在一个入口避免各适配器重复实现。
+- 影响：新增工具只实现「输入 → 归一化 dict」，预算/记账由 runtime 负责。
+
+## D016 mock 按「资产 sha256 + 分镜/窗口序号」键控
+
+- 决策：mock fixture 以素材 sha256 和分镜/窗口序号为键；live 路径仍按输入内容与时间戳生成
+  `input_hash` 用于缓存。
+- 原因：抽帧 JPEG 编码随 ffmpeg 版本变化，按帧内容哈希做 mock 会在换机器后全部 miss。
+- 影响：mock 只对已生成 fixture 的素材生效；新素材需要重新生成或走真实工具。
+
+## D015 工具层是确定性 DAG，不用 LLM 选工具
+
+- 决策：`app/pipeline/detect.py::run` 固定执行 图搜 → 名人 → BGM，按媒体类型与预算跳过；
+  工具选择不交给 LLM。
+- 原因：§10 与 §19 明确禁止演示主路径依赖 LLM 自主调度，防止漏检。
+- 影响：Phase 6 的 Verifier 只做低置信二次检索，不改变这里的工具集合。
+
 ## D014 抽取产物落盘，不新增数据表
 
 - 决策：抽取结果写 `DATA_DIR/extracted/<sha256>/extraction.json`（关键帧同目录 `frames/`），

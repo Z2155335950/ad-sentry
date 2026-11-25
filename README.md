@@ -10,6 +10,8 @@
 - **Phase 1 ✅** 素材层 + 抽取层：ffmpeg 元数据与音轨、分镜、关键帧、OCR、ASR、pHash；
   产物落盘为 `data/extracted/<sha256>/extraction.json`（含关键帧 JPEG），
   通过 `GET /api/jobs/{id}/extraction` 读取。
+- **Phase 2 ✅** 工具层：反向图搜、ACRCloud BGM、AWS Rekognition 公众人物；统一预算 / 熔断 /
+  缓存 / `ToolCall` 记账；默认 mock，凭证齐全后 `TOOLS_MODE=auto` 接真。
 
 进展与未完成项见 [PROGRESS.md](PROGRESS.md)，决策记录见 [DECISIONS.md](DECISIONS.md)。
 
@@ -20,6 +22,7 @@ python -m venv .venv
 .venv/Scripts/python -m pip install -e ".[dev]"   # Windows Git Bash
 python scripts/make_fixture_image.py              # 生成测试图（一次性）
 python scripts/make_fixture_video.py              # 生成 15s 测试视频（一次性，含口播）
+python scripts/make_p2_fixtures.py                # 生成 Phase 2 风险演示视频 + mock（一次性）
 ```
 
 启动服务：
@@ -28,7 +31,8 @@ python scripts/make_fixture_video.py              # 生成 15s 测试视频（�
 python -m uvicorn app.main:app --reload --port 8000
 ```
 
-打开 <http://127.0.0.1:8000/> 上传 `fixtures/media/sample_image.png` 或 `sample_15s.mp4`。
+打开 <http://127.0.0.1:8000/> 上传 `fixtures/media/risk_ad_10s.mp4`（Phase 2 演示，默认 mock，
+可看到 P0/P1/P2 三类信号）；骨架验收用 `make p0`（该检查会关闭工具层）。
 
 ## 验收命令
 
@@ -36,15 +40,17 @@ python -m uvicorn app.main:app --reload --port 8000
 | --- | --- |
 | `make verify-0` | 阶段验收入口（Phase 0，等价 `make p0`） |
 | `make verify-1` | 阶段验收入口（Phase 1，等价 `make p1`） |
+| `make verify-2` | 阶段验收入口（Phase 2，等价 `make p2`） |
 | `make p0` | 启动临时服务，上传样例图，断言 5 秒内产出 fixture 卡片 |
 | `make p1` | 上传 15s 视频，断言关键帧、OCR 文本、ASR 转写 JSON |
+| `make p2` | 上传植入素材，断言图搜 P0 / 名人 P1 / BGM P2；干净素材零 P0/P1 |
 | `make test` | pytest 全量单测 |
 | `make lint` | ruff 检查 |
 | `make run` | 开发服务器 |
 
 Windows 上 make 通过 winget 安装（`ezwinports.make` 4.4.1）；PATH 未刷新的 shell 用
-等价命令：`python scripts/p0_check.py`、`python scripts/p1_check.py`、`python -m pytest`
-（先激活 `.venv`）。
+等价命令：`python scripts/p0_check.py`、`python scripts/p1_check.py`、`python scripts/p2_check.py`、
+`python -m pytest`（先激活 `.venv`）。
 
 ## 抽取层（Phase 1）
 
@@ -61,16 +67,34 @@ Laplacian 清晰度优先）→ `ocr`（逐帧）。
 - 抽取层不产生 Finding；风险信号仍由后续工具层（Phase 2+）产出。`EXTRACT_ENABLED=false`
   可跳过抽取（Phase 0 验收与单测使用）。
 
+## 工具层（Phase 2）
+
+`pipeline/detect.py` 是确定性 DAG：按分镜轮流选帧 → 图搜 → 名人 → BGM，单工具失败只丢该信号。
+
+- **版权图像**：Google Vision `WEB_DETECTION`；图库域名 full/partial match → P0，未知来源
+  匹配页 → P1，仅视觉相似 → P2；证据含页面 URL、标题、匹配类型、帧时间戳。
+- **BGM**：头/中/尾各 10s 窗口送 ACRCloud；识别到曲目 → P2「请核对授权」；全窗口无匹配 →
+  P2「未知音乐」；未配置凭证时不产出。
+- **公众人物**：本地 Haar 检测人脸 → 裁剪（外扩 20%）→ AWS Rekognition；命中 ≥0.80 → P1，
+  只落姓名 / 置信度 / bbox / 时间戳，不落人脸图像。
+- **运行时**：每素材预算 `BUDGET_PER_ASSET_USD=0.25`；同工具 60s 内 3 次失败熔断 60s；
+  live 结果写 `ToolCache`；每次调用写 `ToolCall`。
+- **mock**：`TOOLS_MODE=mock`（默认）读 `fixtures/cache/*.json`，按素材 sha256 + 分镜/窗口
+  键控；`TOOLS_MODE=auto` 在凭证齐全时走 live。演示素材见
+  [fixtures/README.md](fixtures/README.md)。
+
 ## 配置
 
 所有键见 [.env.example](.env.example)。密钥只放 `.env`，不进仓库。凭证清单见 PROMPT.md §4 与实施记录。
 
 ## 已知限制
 
-- 检测链路尚未接入：当前风险信号来自 `fixtures/fake_findings.json`，用于跑通
-  「上传 → 任务 → 卡片 → 复核页」骨架；抽取结果已可供 Phase 2 工具层消费。
+- 工具层默认 mock；三个 live 适配器尚未用真实凭证验证，切 `TOOLS_MODE=auto` 前先用单素材对照。
+- 干净素材当前信号数为 0；`TOOLS_ENABLED=false` 时才回退 `fixtures/fake_findings.json`
+  （Phase 0 骨架验收与单测使用）。
+- 名人 live 只送第一张人脸；无授权台账，BGM 命中统一 P2（Phase 4 接入 license 后才升降级）。
 - ASR 首次运行需要网络下载模型；离线环境需提前准备 `ASR_MODEL_DIR`。
-- 飞书接入、真实工具适配器、评测、演示模式在后续 Phase 实现。
+- 飞书接入、logo/商标/政策、评测、演示模式在后续 Phase 实现。
 - Windows 上 make 通过 winget 安装（ezwinports.make 4.4.1）；未刷新 PATH 的 shell 用
   `.venv` 内的 python 执行等价命令。
 

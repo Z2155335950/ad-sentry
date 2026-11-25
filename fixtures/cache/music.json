@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "note": "Phase 2 mock：合成旋律，窗口 1 命中示例曲目，其余窗口无匹配",
+  "assets": {
+    "5e3af61007710de2baf9272204a0379a49a72bcdcb0b0c79f1372ed588d771dc": {
+      "windows": {
+        "0": {
+          "provider": "acrcloud(mock)",
+          "status": "identified",
+          "title": "Demo Summer Track",
+          "artists": [
+            "Demo Artist"
+          ],
+          "album": "Demo Album",
+          "label": "Demo Records",
+          "score": 0.93,
+          "play_offset_ms": 1200,
+          "duration_ms": 180000,
+          "external_ids": {
+            "isrc": "DEMO00000001"
+          }
+        },
+        "1": {
+          "provider": "acrcloud(mock)",
+          "status": "no_match",
+          "code": 1001
+        },
+        "2": {
+          "provider": "acrcloud(mock)",
+          "status": "no_match",
+          "code": 1001
+        }
+      }
+    }
+  }
+}
