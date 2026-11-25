@@ -7,8 +7,8 @@
 - `fixtures/media/` 清单与来源见 [fixtures/README.md](fixtures/README.md)。
 - 用户提供 `clean_ai.png`（豆包 AI 生成人像）：已入库，用作 Phase 2 干净 AI 负例 /
   Phase 6 评测样本；OCR 可读出「豆包AI生成」水印。
-- 用户提供 `hero.mp4`（13.1s 真人自拍，普通人像）：**未入库**，仅本地负例；
-  是否入库待确认（涉及真实个人面部与提交材料公开范围）。
+- 用户提供 `hero.mp4`（13.1s 真人自拍，普通人像）：按决定**仅本地使用**，
+  已加入 `.gitignore`，仅作本地负例（涉及真实个人面部，不入提交材料）。
 
 ## Phase 1（2026-11-25）✅
 
