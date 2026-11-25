@@ -33,5 +33,8 @@ scripts/build_video_3min.py
 scripts/tts_3min.ps1
 scripts/tts_3min_com.ps1
 
+# 演示视频成片
+素材哨兵_演示视频_3分钟.mp4
+
 # 本地 Claude Code 配置
 .claude/
