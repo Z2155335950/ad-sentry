@@ -14,3 +14,24 @@ eval_report.json
 
 # 用户提供的真人素材：仅本地使用，不入库（见 fixtures/README.md）
 fixtures/media/hero.mp4
+
+# 演示视频生产过程文件：原始录像、截帧测试图、TTS 中间音频、成片工程
+recordings_raw/
+artifacts/
+audio_3min/
+edit_3min/
+
+# 演示视频制作文档与脚本（非程序内容）
+N1_eval_table.png
+N2_evidence_chain.png
+中文字幕_待素材确认.srt
+剪辑方案_待确认.md
+演示视频分镜脚本.md
+转场与动效说明.md
+配音逐句稿_145字每分钟.md
+scripts/build_video_3min.py
+scripts/tts_3min.ps1
+scripts/tts_3min_com.ps1
+
+# 本地 Claude Code 配置
+.claude/

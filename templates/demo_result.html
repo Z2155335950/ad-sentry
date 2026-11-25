@@ -1,80 +1,142 @@
 {% extends "base.html" %}
 {% block title %}演示 · {{ scenario.title }}{% endblock %}
 {% block content %}
-<header class="top">
-  <h1>{{ scenario.title }}</h1>
-  <span class="sub">演示回放 · {{ scenario.id }}</span>
+{% set kind_labels = {"reference": "参照物", "clause": "条款", "bbox": "位置", "timestamp": "时间戳", "metadata": "元数据", "license": "授权记录"} %}
+{% set status_class = {"effective": "ok", "expiring_soon": "warn", "expired": "bad", "out_of_territory": "bad", "out_of_media": "bad", "out_of_scope": "bad", "needs_review": "warn"} %}
+
+<header class="dossier-head">
+  <div class="row tight" style="justify-content: space-between">
+    <p class="eyebrow" style="margin: 0">演示回放 · {{ scenario.id }}</p>
+    <div class="row tight">
+      <a class="tiny-link" href="/demo/replay/{{ scenario.id }}?format=json">JSON ↗</a>
+      <a class="tiny-link" href="/demo">← 返回演示列表</a>
+    </div>
+  </div>
+  <h1 class="dossier-title">{{ scenario.title }}</h1>
+  <p class="dossier-sub">预期结果 · {{ scenario.expected }}</p>
+  <div class="meta-line">
+    <span>{{ "视频" if asset.media_type == "video" else "图片" }}</span>
+    {% if asset.width and asset.height %}<span class="mono">{{ asset.width }}×{{ asset.height }}</span>{% endif %}
+    {% if asset.duration %}<span class="mono">{{ "%.1f"|format(asset.duration) }}s</span>{% endif %}
+    <span class="mono">sha256 {{ asset.sha256[:16] }}…</span>
+    <span>任务 #{{ job.id }}</span>
+  </div>
 </header>
 
-<div class="panel">
-  <p style="margin: 0 0 6px"><strong>预期结果：</strong>{{ scenario.expected }}</p>
-  <p class="muted" style="margin: 0">
-    素材：{{ asset.media_type }}
-    {% if asset.width %} · {{ asset.width }}×{{ asset.height }}{% endif %}
-    · sha256 <code>{{ asset.sha256[:16] }}…</code>
-    · 任务 #{{ job.id }}
-  </p>
-  <p class="muted" style="margin: 6px 0 0">
-    <a href="/demo/replay/{{ scenario.id }}?format=json">查看 JSON</a>
-    · <a href="/demo">返回演示列表</a>
-  </p>
-</div>
-
-<div class="panel">
+<section class="report">
   {% if findings %}
-  <div class="row" style="justify-content: space-between">
-    <strong>{{ card.header.title.content }}</strong>
-    <span class="muted">{{ findings|length }} 条信号</span>
-  </div>
-  {% for f in findings %}
-  <div class="finding">
-    <div class="title">
-      <span class="badge {{ f.level }}">{{ f.level }}</span>
-      {{ f.category_label }} · {{ f.suggestion }}
-      <span class="muted">（置信 {{ "%.2f"|format(f.confidence) if f.confidence is not none else "—" }}）</span>
+  {% set counts = {"P0": 0, "P1": 0, "P2": 0, "P3": 0} %}
+  {% for f in findings %}{% if f.level in counts %}{% set _ = counts.update({f.level: counts[f.level] + 1}) %}{% endif %}{% endfor %}
+  <div class="panel report-head">
+    <div>
+      <p class="eyebrow">检测报告 · 演示数据</p>
+      <h2 class="report-title">{{ findings|length }} 条风险信号</h2>
+      <div class="report-meta">
+        <span>按等级排序</span>
+        <span>证据可复核</span>
+      </div>
     </div>
+    <div class="tally">
+      {% for level in ["P0", "P1", "P2", "P3"] %}
+      <div class="{{ '' if counts[level] else 'zero' }}">
+        <span class="n">{{ counts[level] }}</span>
+        <span class="k">{{ level }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% for f in findings %}
+  <article class="panel finding-card {{ f.level }}">
+    <div class="finding-top">
+      <div class="row tight">
+        <span class="level {{ f.level }}">{{ f.level }}</span>
+        <span class="finding-cat">{{ f.category_label }}</span>
+      </div>
+      {% if f.confidence is not none %}
+      <span class="conf">
+        <span>置信</span>
+        <span class="bar"><i style="width: {{ (f.confidence * 100)|round|int }}%"></i></span>
+        <span class="conf-v">{{ "%.2f"|format(f.confidence) }}</span>
+      </span>
+      {% endif %}
+    </div>
+    <p class="finding-sug">{{ f.suggestion }}</p>
     <ul class="ev">
       {% for ev in f.evidence %}
       <li>
-        [{{ {"reference": "参照物", "clause": "条款", "bbox": "位置", "timestamp": "时间戳", "metadata": "元数据", "license": "授权记录"}.get(ev.kind, ev.kind) }}]
-        {% if ev.ref_record_id %}{{ ev.ref_record_id }}{% endif %}
-        {% if ev.clause_id %}{{ ev.clause_id }}{% endif %}
-        {% if ev.bbox %}<code>bbox({{ ev.bbox }})</code>{% endif %}
-        {% if ev.t_start is not none %}<code>t={{ "%.1f"|format(ev.t_start) }}s</code>{% endif %}
-        {% if ev.ref_url %} <a href="{{ ev.ref_url }}" target="_blank" rel="noopener">来源</a>{% endif %}
-        {% if ev.note %}<br><span class="muted">{{ ev.note }}</span>{% endif %}
+        <span class="kind">{{ kind_labels.get(ev.kind, ev.kind) }}</span>
+        <span class="ev-body">
+          {% if ev.ref_record_id %}<span class="mono">{{ ev.ref_record_id }}</span>{% endif %}
+          {% if ev.clause_id %}<span class="mono">{{ ev.clause_id }}</span>{% endif %}
+          {% if ev.bbox %}<span class="mono">bbox({{ ev.bbox }})</span>{% endif %}
+          {% if ev.t_start is not none %}<span class="mono">t={{ "%.1f"|format(ev.t_start) }}s</span>{% endif %}
+          {% if ev.ref_url %}<a class="ev-link" href="{{ ev.ref_url }}" target="_blank" rel="noopener">来源 ↗</a>{% endif %}
+          {% if ev.note %}<span class="ev-note">{{ ev.note }}</span>{% endif %}
+        </span>
       </li>
       {% endfor %}
     </ul>
-    <a class="btn" href="{{ review_urls[f.id] }}">查看证据链</a>
-  </div>
+    <div class="finding-foot">
+      <a class="link-arrow" href="{{ review_urls[f.id] }}">查看证据链</a>
+    </div>
+  </article>
   {% endfor %}
   {% else %}
-  <strong>未发现风险信号</strong>
-  <p class="muted" style="margin: 8px 0 0">本素材复检通过；仍建议按平台规则与授权文件自行确认。</p>
+  <div class="panel pass">
+    <div class="pass-icon">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M5 12.5l4.2 4.2L19 7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div>
+      <h3>本素材复检通过</h3>
+      <p>未发现风险信号。仍建议按平台规则与授权文件自行确认。</p>
+      <div class="row tight" style="margin-top: 14px">
+        <span class="tag">图库</span>
+        <span class="tag">公众人物</span>
+        <span class="tag">商标</span>
+        <span class="tag">背景音乐</span>
+        <span class="tag">平台政策</span>
+      </div>
+    </div>
+  </div>
   {% endif %}
-</div>
 
-{% if ledger and ledger.items %}
-<div class="panel">
-  <strong>授权台账</strong>
-  {% if ledger.campaign %}
-  <p class="muted" style="margin: 6px 0">
-    投放：{{ ledger.campaign.platform }} · {{ ledger.campaign.market }}
-    {% if ledger.campaign.start %} · {{ ledger.campaign.start }} ~ {{ ledger.campaign.end or "—" }}{% endif %}
-  </p>
-  {% else %}
-  <p class="muted" style="margin: 6px 0">未登记投放信息：地域与媒介无法核验。</p>
+  {% if ledger and ledger["items"] %}
+  <section class="panel">
+    <div class="panel-head">
+      <b>授权台账</b>
+      {% if ledger.campaign %}
+      <span class="tag ok">已登记投放</span>
+      {% else %}
+      <span class="tag warn">缺投放信息</span>
+      {% endif %}
+    </div>
+    <div class="panel-body">
+      {% if ledger.campaign %}
+      <p class="muted">
+        投放 {{ ledger.campaign.platform }} · {{ ledger.campaign.market }}
+        {% if ledger.campaign.start %} · {{ ledger.campaign.start }} ~ {{ ledger.campaign.end or "—" }}{% endif %}
+      </p>
+      {% else %}
+      <p class="muted">未登记投放信息：地域与媒介无法核验。</p>
+      {% endif %}
+      {% for item in ledger["items"] %}
+      <div class="ledger-row">
+        <div class="who">
+          <b>{{ item.scope_type or "未标注范围" }}</b>
+          <span class="muted"> · #{{ item.license_id }}</span>
+          <div class="why">
+            {{ item.start or "—" }} ~ {{ item.end or "—" }}
+            {% if item.reasons %}<br>{{ item.reasons | join("；") }}{% endif %}
+          </div>
+        </div>
+        <span class="tag {{ status_class.get(item.status, '') }}">{{ item.status_label }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
   {% endif %}
-  <ul class="ev">
-    {% for item in ledger.items %}
-    <li>
-      [{{ item.status_label }}] #{{ item.license_id }} {{ item.scope_type or "未标注范围" }}
-      · {{ item.start or "—" }} ~ {{ item.end or "—" }}
-      {% if item.reasons %}<br><span class="muted">{{ item.reasons | join("；") }}</span>{% endif %}
-    </li>
-    {% endfor %}
-  </ul>
-</div>
-{% endif %}
+</section>
 {% endblock %}

@@ -1,197 +1,343 @@
-{% extends "base.html" %}
-{% block title %}复核 · {{ category_label }}{% endblock %}
-{% block content %}
-<header class="top">
-  <h1>证据链复核</h1>
-  <span class="sub">人工确认或驳回，结果写回台账</span>
-</header>
+{% extends "base_instrument.html" %}
+{% block title %}复核 · {{ category_label }} · 素材哨兵{% endblock %}
 
-<div class="panel">
-  <div class="row" style="justify-content: space-between">
-    <div>
-      <span class="badge {{ finding.level }}">{{ finding.level }}</span>
-      <strong style="margin-left: 8px">{{ category_label }}</strong>
-      <span class="muted" style="margin-left: 8px">
-        置信 {{ "%.2f"|format(finding.confidence) if finding.confidence is not none else "—" }}
-      </span>
+{% block topbar %}
+{% set media_label = "视频" if asset and asset.media_type == "video" else "图片" %}
+<div class="statusbar">
+  <div class="shell statusbar-inner" aria-label="复核状态">
+    <a class="brandmark" href="/" aria-label="回到检测台">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="3.5" y="3.5" width="17" height="17" rx="4" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M12 6v2M12 16v2M6 12h2M16 12h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </a>
+    <span class="vsep" aria-hidden="true"></span>
+    <div class="sfield">
+      <span class="slabel">素材</span>
+      <span class="svalue mono">{{ asset.sha256[:10] if asset else "—" }}</span>
     </div>
-    <span class="muted" id="review-status">复核状态：{{ review_status_label }}</span>
-  </div>
-  <p style="margin: 12px 0 4px">{{ finding.suggestion }}</p>
-  {% if asset %}
-  <p class="muted" style="margin: 0">
-    素材：{{ asset.media_type }}
-    {% if asset.width %} · {{ asset.width }}×{{ asset.height }}{% endif %}
-    · sha256 <code>{{ asset.sha256[:16] }}…</code>
-  </p>
-  {% endif %}
-</div>
-
-<div class="panel">
-  <strong>证据（{{ evidences|length }}）</strong>
-  {% set kind_labels = {"reference": "参照物", "clause": "条款", "bbox": "位置", "timestamp": "时间戳", "metadata": "元数据", "license": "授权记录"} %}
-  <ul class="ev" style="margin-top: 10px">
-    {% for ev in evidences %}
-    <li>
-      [{{ kind_labels.get(ev.kind, ev.kind) }}]
-      {% if ev.ref_record_id %}{{ ev.ref_record_id }}{% endif %}
-      {% if ev.clause_id %}{{ ev.clause_id }}{% endif %}
-      {% if ev.bbox %}<code>bbox({{ ev.bbox }})</code>{% endif %}
-      {% if ev.t_start is not none %}<code>t={{ "%.1f"|format(ev.t_start) }}s</code>{% endif %}
-      {% if ev.ref_url %} <a href="{{ ev.ref_url }}" target="_blank" rel="noopener">来源链接</a>{% endif %}
-      {% if ev.note %}<br><span class="muted">{{ ev.note }}</span>{% endif %}
-    </li>
-    {% else %}
-    <li>无证据记录</li>
-    {% endfor %}
-  </ul>
-</div>
-
-<div class="panel">
-  <strong>授权台账</strong>
-  {% if ledger %}
-  {% if ledger.campaign %}
-  <p class="muted" style="margin: 6px 0">
-    投放：{{ ledger.campaign.platform }} · {{ ledger.campaign.market }}
-    {% if ledger.campaign.start %} · {{ ledger.campaign.start }} ~ {{ ledger.campaign.end or "—" }}{% endif %}
-  </p>
-  {% else %}
-  <p class="muted" style="margin: 6px 0">
-    未登记投放信息：地域与媒介无法核验，需补充 platform / market 后再判断。
-  </p>
-  {% endif %}
-
-  <ul class="ev" style="margin-top: 10px">
-    {% for item in ledger["items"] %}
-    <li>
-      [{{ item.status_label }}] #{{ item.record.id }}
-      {{ item.record.scope_type or "未标注范围" }}
-      · {{ item.record.start or "—" }} ~ {{ item.record.end or "—" }}
-      {% if item.result.reasons %}
-      <br><span class="muted">{{ item.result.reasons | join("；") }}</span>
-      {% endif %}
-    </li>
-    {% else %}
-    <li>尚未挂接授权记录</li>
-    {% endfor %}
-  </ul>
-
-  {% if ledger.available %}
-  <div class="row" style="margin-top: 10px">
-    <select id="license-select">
-      {% for record in ledger.available %}
-      <option value="{{ record.id }}">
-        #{{ record.id }} {{ record.scope_type or "未标注" }} · {{ record.start or "—" }} ~ {{ record.end or "—" }}
-      </option>
-      {% endfor %}
-    </select>
-    <button class="btn" id="btn-link" type="button">挂接到本素材</button>
-    <span class="muted" id="ledger-status"></span>
-  </div>
-  {% endif %}
-
-  <details style="margin-top: 12px">
-    <summary class="muted">登记 / 修改投放信息</summary>
-    <div class="row" style="margin-top: 8px; flex-wrap: wrap">
-      <input id="campaign-platform" placeholder="platform，如 tiktok"
-             value="{{ ledger.campaign.platform if ledger.campaign else '' }}">
-      <input id="campaign-market" placeholder="market，如 SEA"
-             value="{{ ledger.campaign.market if ledger.campaign else '' }}">
-      <input id="campaign-start" placeholder="start YYYY-MM-DD"
-             value="{{ ledger.campaign.start if ledger.campaign and ledger.campaign.start else '' }}">
-      <input id="campaign-end" placeholder="end YYYY-MM-DD"
-             value="{{ ledger.campaign.end if ledger.campaign and ledger.campaign.end else '' }}">
-      <button class="btn" id="btn-campaign" type="button">保存投放信息</button>
+    <div class="sfield">
+      <span class="slabel">状态</span>
+      <span class="svalue" id="strip-status">{{ review_status_label }}</span>
     </div>
-  </details>
-  {% endif %}
-</div>
-
-<div class="panel">
-  <strong>复核动作</strong>
-  <p class="muted" style="margin: 6px 0 10px">驳回必须填写理由，理由用于阈值与规则回流。</p>
-  <textarea id="reason" placeholder="驳回理由 / 复核备注"></textarea>
-  <div class="row" style="margin-top: 10px">
-    <button class="btn primary" id="btn-confirm" type="button">确认风险</button>
-    <button class="btn danger" id="btn-reject" type="button">驳回</button>
-    <span class="muted" id="action-status"></span>
+    <div class="sfield">
+      <span class="slabel">总等级</span>
+      <span class="svalue mono levelmark lv-{{ finding.level }}">{{ finding.level }}</span>
+    </div>
+    <a class="btn strip-btn" href="/" title="回到检测台上传素材并重新检测">重新检测</a>
   </div>
 </div>
 {% endblock %}
+
+{% block content %}
+{% set kind_labels = {"reference": "参照物", "clause": "条款", "bbox": "位置", "timestamp": "时间戳", "metadata": "元数据", "license": "授权记录"} %}
+{% set bboxes = evidences | selectattr("kind", "equalto", "bbox") | list %}
+{% set stamps = evidences | selectattr("kind", "equalto", "timestamp") | list %}
+{% set media_label = "视频" if asset and asset.media_type == "video" else "图片" %}
+
+<div class="layout">
+  <section class="panel source" aria-labelledby="source-title">
+    <header class="panel-head">
+      <h2 id="source-title">源素材</h2>
+      <span class="meta">
+        {{ media_label }}{% if asset and asset.width and asset.height %} · <span class="mono">{{ asset.width }}×{{ asset.height }}</span>{% endif %}{% if asset and asset.duration %} · <span class="mono">{{ "%.2f"|format(asset.duration) }}s</span>{% endif %}
+      </span>
+    </header>
+
+    <div class="plate-wrap">
+      <div class="plate lv-{{ finding.level }}" role="img"
+           aria-label="位置示意，{{ bboxes|length }} 个标注区域">
+        {% for ev in bboxes %}
+        {% set xy = ev.bbox.split(",") %}
+        {% if xy|length == 4 %}
+        {% set x1 = xy[0] | float(0) %}
+        {% set y1 = xy[1] | float(0) %}
+        {% set x2 = xy[2] | float(0) %}
+        {% set y2 = xy[3] | float(0) %}
+        <span class="bbox"
+              style="left: {{ (x1 * 100)|round(2) }}%; top: {{ (y1 * 100)|round(2) }}%; width: {{ ((x2 - x1) * 100)|round(2) }}%; height: {{ ((y2 - y1) * 100)|round(2) }}%;">
+          <span class="bbox-label mono">{{ loop.index }}</span>
+        </span>
+        {% endif %}
+        {% endfor %}
+        {% if not bboxes %}
+        <span class="plate-empty">无位置证据</span>
+        {% endif %}
+      </div>
+      <div class="plate-foot">
+        <span>位置示意 · 归一化坐标</span>
+      </div>
+    </div>
+
+    {% if stamps %}
+    <div class="timeline">
+      <span class="meta">时间轴</span>
+      <div class="chips">
+        {% for ev in stamps %}
+        <span class="chip mono">t={{ "%.2f"|format(ev.t_start) }}s</span>
+        {% endfor %}
+      </div>
+      {% if asset and asset.duration and asset.duration > 0 %}
+      <div class="track" aria-hidden="true">
+        {% for ev in stamps %}
+        {% set pct = ((ev.t_start / asset.duration) * 100) | round(1) %}
+        <span class="tick" style="left: {{ 0 if pct < 0 else (100 if pct > 100 else pct) }}%;"></span>
+        {% endfor %}
+      </div>
+      <div class="track-labels mono">
+        <span>0.00s</span>
+        <span>{{ "%.2f"|format(asset.duration) }}s</span>
+      </div>
+      {% endif %}
+    </div>
+    {% elif asset and asset.media_type == "video" %}
+    <div class="timeline empty-line">无时间戳证据</div>
+    {% endif %}
+  </section>
+
+  <aside class="signal-col">
+    <div class="signal-sticky">
+      <section class="panel signal lv-{{ finding.level }}" aria-labelledby="signal-title">
+        <header class="signal-head">
+          <div class="signal-title">
+            <span class="signal-level mono">{{ finding.level }}</span>
+            <h2 class="signal-cat" id="signal-title">{{ category_label }}</h2>
+          </div>
+        </header>
+        <div class="signal-body">
+          <div class="conf">
+            <span class="conf-label">置信</span>
+            <span class="conf-track" aria-hidden="true">
+              {% if finding.confidence is not none %}
+              <i style="width: {{ (finding.confidence * 100)|round|int }}%;"></i>
+              {% endif %}
+            </span>
+            <span class="conf-val mono">{{ "%.2f"|format(finding.confidence) if finding.confidence is not none else "—" }}</span>
+          </div>
+
+          <p class="conclusion">{{ finding.suggestion }}</p>
+
+          <div class="ev-head">
+            <h3>证据</h3>
+            <span class="meta mono">{{ evidences|length }}</span>
+          </div>
+          <ul class="ev">
+            {% set ns = namespace(bbox=0) %}
+            {% for ev in evidences %}
+            <li>
+              <span class="kind">{{ kind_labels.get(ev.kind, ev.kind) }}</span>
+              <span class="ev-main">
+                {% if ev.kind == "license" %}
+                <a class="ref" href="#ledger">{{ ev.ref_record_id or "授权记录" }}</a>
+                {% elif ev.ref_url %}
+                <a class="ref" href="{{ ev.ref_url }}" target="_blank" rel="noopener">{{ ev.ref_record_id or ev.clause_id or "打开来源" }}</a>
+                {% elif ev.ref_record_id %}
+                <span class="ref">{{ ev.ref_record_id }}</span>
+                {% endif %}
+                {% if ev.clause_id and ev.ref_record_id %}
+                <span class="ref">{{ ev.clause_id }}</span>
+                {% endif %}
+                {% if ev.bbox %}
+                <span class="ref">bbox({{ ev.bbox }})</span>
+                {% endif %}
+                {% if ev.note %}
+                <span class="ev-note">{{ ev.note }}</span>
+                {% endif %}
+              </span>
+              {% if ev.kind == "bbox" %}
+              {% set ns.bbox = ns.bbox + 1 %}
+              <span class="loc mono">bbox {{ ns.bbox }}</span>
+              {% elif ev.t_start is not none %}
+              <span class="loc mono">t={{ "%.2f"|format(ev.t_start) }}s</span>
+              {% endif %}
+            </li>
+            {% else %}
+            <li><span class="kind">—</span><span class="ev-main"><span class="ev-note">无证据记录</span></span></li>
+            {% endfor %}
+          </ul>
+
+          <div class="decision">
+            <label class="label" for="reason">复核备注（驳回必填）</label>
+            <textarea id="reason" rows="3"></textarea>
+            <div class="actions">
+              <button class="btn primary" id="btn-confirm" type="button">确认风险</button>
+              <button class="btn" id="btn-reject" type="button">驳回</button>
+            </div>
+            <p class="statusline" id="action-status" aria-live="polite"></p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </aside>
+
+  {% if ledger %}
+  <section class="panel ledger" id="ledger" aria-labelledby="ledger-title">
+    <header class="panel-head">
+      <h2 id="ledger-title">授权台账</h2>
+      <span class="meta">{{ "已登记投放" if ledger.campaign else "未登记投放" }}</span>
+    </header>
+    <div class="panel-body">
+      {% if ledger.campaign %}
+      <dl class="kv">
+        <div><dt>平台</dt><dd>{{ ledger.campaign.platform or "—" }}</dd></div>
+        <div><dt>地域</dt><dd>{{ ledger.campaign.market or "—" }}</dd></div>
+        <div><dt>起止</dt><dd>{{ ledger.campaign.start or "—" }} → {{ ledger.campaign.end or "—" }}</dd></div>
+      </dl>
+      {% else %}
+      <p class="note">未登记投放信息，地域与媒介无法核验。</p>
+      {% endif %}
+
+      {% for item in ledger["items"] %}
+      <div class="record">
+        <div>
+          <div class="scope">
+            {{ item.record.scope_type or "未标注范围" }}
+            <span class="mono meta">#{{ item.record.id }}</span>
+          </div>
+          {% if item.result.reasons %}
+          <p class="why">{{ item.result.reasons | join("；") }}</p>
+          {% endif %}
+        </div>
+        <div class="record-meta">
+          <span class="mono">{{ item.record.start or "—" }} → {{ item.record.end or "—" }}</span>
+          <span class="status">{{ item.status_label }}</span>
+        </div>
+      </div>
+      {% else %}
+      <p class="empty-line">尚未挂接授权记录</p>
+      {% endfor %}
+
+      {% if ledger.available %}
+      <div class="controls">
+        <select id="license-select" aria-label="可挂接的授权记录">
+          {% for record in ledger.available %}
+          <option value="{{ record.id }}">
+            #{{ record.id }} {{ record.scope_type or "未标注" }} · {{ record.start or "—" }} → {{ record.end or "—" }}
+          </option>
+          {% endfor %}
+        </select>
+        <button class="btn" id="btn-link" type="button">挂接</button>
+      </div>
+      {% endif %}
+      <p class="statusline" id="ledger-status"></p>
+
+      <details class="edit">
+        <summary>登记 / 修改投放信息</summary>
+        <div class="edit-grid">
+          <label class="field"><span>platform</span>
+            <input id="campaign-platform" placeholder="tiktok"
+                   value="{{ ledger.campaign.platform if ledger.campaign else '' }}">
+          </label>
+          <label class="field"><span>market</span>
+            <input id="campaign-market" placeholder="SEA"
+                   value="{{ ledger.campaign.market if ledger.campaign else '' }}">
+          </label>
+          <label class="field"><span>start</span>
+            <input id="campaign-start" class="mono" placeholder="YYYY-MM-DD"
+                   value="{{ ledger.campaign.start if ledger.campaign and ledger.campaign.start else '' }}">
+          </label>
+          <label class="field"><span>end</span>
+            <input id="campaign-end" class="mono" placeholder="YYYY-MM-DD"
+                   value="{{ ledger.campaign.end if ledger.campaign and ledger.campaign.end else '' }}">
+          </label>
+        </div>
+        <div class="controls">
+          <button class="btn" id="btn-campaign" type="button">保存投放信息</button>
+        </div>
+      </details>
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
+
 {% block scripts %}
 <script>
-const FINDING_ID = {{ finding.id }};
-const TOKEN = {{ token | tojson }};
-const actionStatus = document.getElementById('action-status');
+  const FINDING_ID = {{ finding.id }};
+  const TOKEN = {{ token | tojson }};
+  const actionStatus = document.getElementById("action-status");
+  const stripStatus = document.getElementById("strip-status");
+  const STATUS_LABEL = { confirmed: "已确认", rejected: "已驳回" };
 
-async function submitAction(action) {
-  const reason = document.getElementById('reason').value;
-  actionStatus.textContent = '提交中…';
-  const resp = await fetch(
-    `/api/review/${FINDING_ID}/action?token=${encodeURIComponent(TOKEN)}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, reason }),
-    },
-  );
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) {
-    actionStatus.textContent = data.detail || '操作失败';
-    return;
+  function setText(node, text) {
+    if (node) node.textContent = text;
   }
-  actionStatus.textContent = data.review_status === 'confirmed' ? '已确认为风险' : '已驳回';
-  document.getElementById('review-status').textContent =
-    '复核状态：' + (data.review_status === 'confirmed' ? '已确认' : '已驳回');
-}
 
-document.getElementById('btn-confirm').addEventListener('click', () => submitAction('confirm'));
-document.getElementById('btn-reject').addEventListener('click', () => submitAction('reject'));
-
-const ASSET_ID = {{ asset.id if asset else 'null' }};
-const ledgerStatus = document.getElementById('ledger-status');
-
-async function postJson(url, body) {
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) throw new Error(data.detail || '操作失败');
-  return data;
-}
-
-const linkButton = document.getElementById('btn-link');
-if (linkButton && ASSET_ID) {
-  linkButton.addEventListener('click', async () => {
-    const licenseId = document.getElementById('license-select').value;
-    ledgerStatus.textContent = '挂接中…';
+  async function submitAction(action) {
+    const reason = document.getElementById("reason").value;
+    setText(actionStatus, "提交中…");
+    let resp;
     try {
-      await postJson(`/api/licenses/${licenseId}/link`, { asset_id: ASSET_ID });
-      window.location.reload();
+      resp = await fetch(
+        `/api/review/${FINDING_ID}/action?token=${encodeURIComponent(TOKEN)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, reason }),
+        },
+      );
     } catch (err) {
-      ledgerStatus.textContent = err.message;
+      setText(actionStatus, "网络异常，请重试");
+      return;
     }
-  });
-}
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      setText(actionStatus, data.detail || "操作失败");
+      return;
+    }
+    const label = STATUS_LABEL[data.review_status] || data.review_status;
+    setText(stripStatus, label);
+    setText(actionStatus, action === "confirm" ? "已确认为风险" : "已驳回");
+  }
 
-const campaignButton = document.getElementById('btn-campaign');
-if (campaignButton && ASSET_ID) {
-  campaignButton.addEventListener('click', async () => {
-    ledgerStatus.textContent = '保存中…';
-    try {
-      await postJson(`/api/assets/${ASSET_ID}/campaign`, {
-        platform: document.getElementById('campaign-platform').value,
-        market: document.getElementById('campaign-market').value,
-        start: document.getElementById('campaign-start').value || null,
-        end: document.getElementById('campaign-end').value || null,
-      });
-      window.location.reload();
-    } catch (err) {
-      ledgerStatus.textContent = err.message;
-    }
-  });
-}
+  document.getElementById("btn-confirm").addEventListener("click", () => submitAction("confirm"));
+  document.getElementById("btn-reject").addEventListener("click", () => submitAction("reject"));
+
+  const ASSET_ID = {{ asset.id if asset else "null" }};
+  const ledgerStatus = document.getElementById("ledger-status");
+
+  async function postJson(url, body) {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.detail || "操作失败");
+    return data;
+  }
+
+  const linkButton = document.getElementById("btn-link");
+  if (linkButton && ASSET_ID) {
+    linkButton.addEventListener("click", async () => {
+      const licenseId = document.getElementById("license-select").value;
+      setText(ledgerStatus, "挂接中…");
+      try {
+        await postJson(`/api/licenses/${licenseId}/link`, { asset_id: ASSET_ID });
+        window.location.reload();
+      } catch (err) {
+        setText(ledgerStatus, err.message);
+      }
+    });
+  }
+
+  const campaignButton = document.getElementById("btn-campaign");
+  if (campaignButton && ASSET_ID) {
+    campaignButton.addEventListener("click", async () => {
+      setText(ledgerStatus, "保存中…");
+      try {
+        await postJson(`/api/assets/${ASSET_ID}/campaign`, {
+          platform: document.getElementById("campaign-platform").value,
+          market: document.getElementById("campaign-market").value,
+          start: document.getElementById("campaign-start").value || null,
+          end: document.getElementById("campaign-end").value || null,
+        });
+        window.location.reload();
+      } catch (err) {
+        setText(ledgerStatus, err.message);
+      }
+    });
+  }
 </script>
 {% endblock %}

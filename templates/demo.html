@@ -1,32 +1,42 @@
 {% extends "base.html" %}
-{% block title %}演示模式 · 素材哨兵{% endblock %}
+{% block title %}演示 · 素材哨兵{% endblock %}
 {% block content %}
-<header class="top">
-  <h1>演示模式</h1>
-  <span class="sub">预置完整结果，断网可复现 · 不调用外部工具</span>
-</header>
-
-{% for s in scenarios %}
-<div class="panel">
-  <div class="row" style="justify-content: space-between">
-    <strong>{{ s.title }}</strong>
-    <a class="btn primary" href="/demo/replay/{{ s.id }}">打开回放</a>
+<section class="hero">
+  <div>
+    <p class="eyebrow">Demo mode · 离线回放</p>
+    <h1 class="display">五个场景，<br><em>断网</em>也能跑完。</h1>
+    <p class="lede">
+      预置完整结果：从信号卡片、证据链到人工复核全链路可复现，不调用外部工具。
+    </p>
   </div>
-  <p class="muted" style="margin: 8px 0 4px">{{ s.summary }}</p>
-  <p style="margin: 0">预期结果：{{ s.expected }}</p>
-  <p class="muted" style="margin: 6px 0 0">
-    <code>/demo/replay/{{ s.id }}</code>
-    · <a href="/demo/replay/{{ s.id }}?format=json">JSON</a>
-  </p>
-</div>
-{% endfor %}
+  <div>
+    <ol class="assure" aria-label="回放内容">
+      <li><span class="n">01</span><span><strong>风险卡片</strong><span class="d">按等级排序，附证据链</span></span></li>
+      <li><span class="n">02</span><span><strong>授权台账</strong><span class="d">过期、地域与范围核验</span></span></li>
+      <li><span class="n">03</span><span><strong>复核动作</strong><span class="d">确认或驳回，写回数据库</span></span></li>
+    </ol>
+    <p class="muted" style="margin-top: 16px">
+      启动时设 <code>DEMO_MODE=true</code>。其余素材走
+      <a href="/" style="color: var(--accent)">检测台</a> 的真实入口。
+    </p>
+  </div>
+</section>
 
-
-<div class="panel">
-  <strong>现场使用</strong>
-  <p class="muted" style="margin: 8px 0 0">
-    启动服务时设置 <code>DEMO_MODE=true</code>；其余素材走真实上传入口
-    <a href="/">/</a>。回放结果与复核动作写入当前数据库，可反复打开。
-  </p>
+<div class="scenario-grid">
+  {% for s in scenarios %}
+  <article class="panel scenario">
+    <div class="row tight" style="justify-content: space-between">
+      <span class="scenario-index">{{ "%02d"|format(loop.index) }}</span>
+      <span class="tag">{{ "批量巡检" if s.kind == "batch" else "单素材回放" }}</span>
+    </div>
+    <h3>{{ s.title }}</h3>
+    <p class="summary">{{ s.summary }}</p>
+    <p class="expected"><b>预期</b> · {{ s.expected }}</p>
+    <div class="scenario-foot">
+      <a class="btn small primary" href="/demo/replay/{{ s.id }}">打开回放</a>
+      <a class="tiny-link" href="/demo/replay/{{ s.id }}?format=json">JSON ↗</a>
+    </div>
+  </article>
+  {% endfor %}
 </div>
 {% endblock %}

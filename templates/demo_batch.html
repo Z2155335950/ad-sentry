@@ -1,35 +1,72 @@
 {% extends "base.html" %}
 {% block title %}演示 · {{ scenario.title }}{% endblock %}
 {% block content %}
-<header class="top">
-  <h1>{{ scenario.title }}</h1>
-  <span class="sub">历史素材批量巡检 · 演示汇总</span>
+<header class="dossier-head">
+  <div class="row tight" style="justify-content: space-between">
+    <p class="eyebrow" style="margin: 0">演示回放 · {{ scenario.id }}</p>
+    <div class="row tight">
+      <a class="tiny-link" href="/demo/replay/{{ scenario.id }}?format=json">JSON ↗</a>
+      <a class="tiny-link" href="/demo">← 返回演示列表</a>
+    </div>
+  </div>
+  <h1 class="dossier-title">{{ scenario.title }}</h1>
+  <p class="dossier-sub">预期结果 · {{ scenario.expected }}</p>
 </header>
 
-<div class="panel">
-  <p style="margin: 0 0 6px"><strong>预期结果：</strong>{{ scenario.expected }}</p>
-  <p class="muted" style="margin: 0">
-    {{ batch.assets }} 条素材 · {{ batch.findings }} 条信号 ·
-    P0 {{ batch.totals.P0 }} / P1 {{ batch.totals.P1 }} /
-    P2 {{ batch.totals.P2 }} / P3 {{ batch.totals.P3 }} ·
-    需处理 {{ batch.needs_action }} 条
-  </p>
-  <p class="muted" style="margin: 6px 0 0">
-    <a href="/demo/replay/{{ scenario.id }}?format=json">查看 JSON</a>
-    · <a href="/demo">返回演示列表</a>
-  </p>
+<div class="stat-strip" style="margin-top: 0; border-top: 0">
+  <div><span class="n">{{ batch.assets }}</span><span class="k">素材</span></div>
+  <div><span class="n">{{ batch.findings }}</span><span class="k">信号</span></div>
+  <div><span class="n">{{ batch.totals.P0 }}</span><span class="k">P0</span></div>
+  <div><span class="n">{{ batch.totals.P1 }}</span><span class="k">P1</span></div>
+  <div><span class="n">{{ batch.needs_action }}</span><span class="k">需处理</span></div>
 </div>
 
-<div class="panel">
-  {% for row in batch.rows %}
-  <div class="finding">
-    <div class="title">
-      {% if row.top_level %}<span class="badge {{ row.top_level }}">{{ row.top_level }}</span>{% endif %}
-      {{ row.title }}
-      <span class="muted">（P0 {{ row.counts.P0 }} / P1 {{ row.counts.P1 }} / P2 {{ row.counts.P2 }} / P3 {{ row.counts.P3 }}）</span>
-    </div>
-    <a class="btn" href="/demo/replay/{{ row.id }}">查看证据链</a>
+<section class="panel" style="margin-top: 28px">
+  <div class="panel-head">
+    <b>巡检明细</b>
+    <span class="muted">{{ batch.rows|length }} 条素材</span>
   </div>
-  {% endfor %}
-</div>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>素材</th>
+          <th>最高等级</th>
+          <th class="num count">P0</th>
+          <th class="num count">P1</th>
+          <th class="num count">P2</th>
+          <th class="num count">P3</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in batch.rows %}
+        <tr>
+          <td>
+            <b style="font-weight: 580">{{ row.title }}</b>
+            <div class="muted" style="font-size: 12px">
+              信号 {{ row.finding_count }} 条 · 需处理 {{ row.needs_action }}
+              <span class="mobile-only"> · P0 {{ row.counts.P0 }} / P1 {{ row.counts.P1 }} / P2 {{ row.counts.P2 }} / P3 {{ row.counts.P3 }}</span>
+            </div>
+          </td>
+          <td>
+            {% if row.top_level %}
+            <span class="level {{ row.top_level }}">{{ row.top_level }}</span>
+            {% else %}
+            <span class="tag ok">通过</span>
+            {% endif %}
+          </td>
+          <td class="num count">{{ row.counts.P0 }}</td>
+          <td class="num count">{{ row.counts.P1 }}</td>
+          <td class="num count">{{ row.counts.P2 }}</td>
+          <td class="num count">{{ row.counts.P3 }}</td>
+          <td style="text-align: right">
+            <a class="link-arrow" href="/demo/replay/{{ row.id }}">回放</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
 {% endblock %}

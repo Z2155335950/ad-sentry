@@ -12,7 +12,7 @@ from sqlmodel import Session, select
 from app.api.review import DISCLAIMER, make_review_url
 from app.config import settings
 from app.db import get_session
-from app.models import LEVEL_ORDER, Asset, Evidence, Finding, Job
+from app.models import CATEGORY_LABELS, LEVEL_ORDER, Asset, Evidence, Finding, Job
 from app.pipeline import extract
 from app.pipeline.ingest import UnsupportedMedia, store_asset
 from app.pipeline.report import build_card
@@ -28,7 +28,11 @@ def upload_page(request: Request):
     return templates.TemplateResponse(
         request,
         "upload.html",
-        {"disclaimer": DISCLAIMER, "max_upload_mb": settings.max_upload_mb},
+        {
+            "disclaimer": DISCLAIMER,
+            "max_upload_mb": settings.max_upload_mb,
+            "category_labels": CATEGORY_LABELS,
+        },
     )
 
 
@@ -87,6 +91,8 @@ def job_status(
     card = None
     if payload:
         review_urls = {f["id"]: make_review_url(request, f["id"]) for f in payload}
+        for finding in payload:
+            finding["review_url"] = review_urls[finding["id"]]
         card = build_card(payload, review_urls)
 
     return {

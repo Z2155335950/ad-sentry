@@ -1,124 +1,422 @@
-{% extends "base.html" %}
-{% block title %}素材哨兵 · 上传{% endblock %}
-{% block content %}
-<header class="top">
-  <h1>素材哨兵 AdSentry</h1>
-  <span class="sub">上线前风险信号筛查 · 只提示风险，不做法律判定</span>
-</header>
+{% extends "base_instrument.html" %}
+{% block title %}检测台 · 素材哨兵{% endblock %}
+{% block footer_mark %}ADSENTRY / PRE-FLIGHT{% endblock %}
 
-<div class="panel">
-  <form id="upload-form">
-    <p style="margin-top:0">上传图片或短视频（≤ {{ max_upload_mb }}MB），系统返回带证据链的风险信号。</p>
-    <div class="row">
-      <input id="file" type="file" accept="image/*,video/*" required>
-      <button class="btn primary" type="submit">上传并检测</button>
-      <span id="status" class="muted"></span>
+{% block topbar %}
+<div class="statusbar">
+  <div class="shell statusbar-inner" aria-label="检测台状态">
+    <a class="brandmark" href="/" aria-label="检测台首页">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="3.5" y="3.5" width="17" height="17" rx="4" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M12 6v2M12 16v2M6 12h2M16 12h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </a>
+    <span class="vsep" aria-hidden="true"></span>
+    <div class="sfield">
+      <span class="slabel">检测台</span>
+      <span class="svalue" id="strip-status">待上传</span>
+    </div>
+    <span class="svalue mono" id="strip-meta" style="margin-left: auto"></span>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="workbench">
+  <div class="page-head">
+    <h1>上传素材</h1>
+    <p class="lede">图片或短视频，筛查图库、人物、商标、音乐与政策。</p>
+  </div>
+
+  <form class="panel" id="upload-form">
+    <div class="panel-body">
+      <label class="dropzone" id="dropzone" for="file" tabindex="0">
+        <input class="sr-only" id="file" type="file" accept="image/*,video/*">
+        <span class="dz-icon" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="dz-title" id="dz-title">选择素材，或拖入此处</span>
+        <span class="dz-hint">JPG / PNG / MP4 / MOV · <span class="mono">≤ {{ max_upload_mb }} MB</span></span>
+        <span class="dz-file" id="dz-file" hidden><span class="mono" id="dz-filename"></span></span>
+      </label>
+      <div class="upload-actions">
+        <button class="btn primary" id="submit-btn" type="submit">开始检测</button>
+        <span class="run-state" id="status" role="status" aria-live="polite"></span>
+      </div>
+      <ol class="pipeline" id="pipeline" hidden aria-hidden="true">
+        <li data-step="parse">解析素材</li>
+        <li data-step="tools">识别信号</li>
+        <li data-step="report">生成报告</li>
+      </ol>
     </div>
   </form>
-</div>
 
-<div id="result"></div>
+  <div id="result" aria-live="polite"></div>
+</div>
 {% endblock %}
+
 {% block scripts %}
 <script>
-const statusEl = document.getElementById('status');
+  const CATEGORY_LABELS = {{ category_labels | tojson }};
+  const KIND_LABELS = {
+    reference: "参照物", clause: "条款", bbox: "位置",
+    timestamp: "时间戳", metadata: "元数据", license: "授权记录",
+  };
+  const LEVELS = ["P0", "P1", "P2", "P3"];
+  const SUBSTAGE = {
+    probe: "读取媒体信息", asr: "语音转写", scene: "分镜切分",
+    frames: "抽取关键帧", ocr: "文字识别",
+    image_search: "图库检索", celebrity: "人物识别", logo: "标识比对",
+    trademark: "商标词匹配", bgm: "音乐识别", policy: "政策检索",
+    verifier: "交叉验证",
+  };
 
-function setStatus(text) { statusEl.textContent = text; }
+  const form = document.getElementById("upload-form");
+  const fileInput = document.getElementById("file");
+  const dropzone = document.getElementById("dropzone");
+  const dzTitle = document.getElementById("dz-title");
+  const dzFile = document.getElementById("dz-file");
+  const dzFilename = document.getElementById("dz-filename");
+  const submitBtn = document.getElementById("submit-btn");
+  const statusEl = document.getElementById("status");
+  const pipeline = document.getElementById("pipeline");
+  const stripStatus = document.getElementById("strip-status");
+  const stripMeta = document.getElementById("strip-meta");
+  const resultEl = document.getElementById("result");
 
-document.getElementById('upload-form').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const file = document.getElementById('file').files[0];
-  if (!file) return;
-  const form = new FormData();
-  form.append('file', file);
-  setStatus('上传中…');
-  const startedAt = performance.now();
-  const resp = await fetch('/api/upload', { method: 'POST', body: form });
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) { setStatus(data.detail || '上传失败'); return; }
-  setStatus('已受理，检测中…');
-  pollJob(data.job_id, startedAt);
-});
+  function el(tag, cls, text) {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text != null) node.textContent = text;
+    return node;
+  }
 
-async function pollJob(jobId, startedAt) {
-  for (let i = 0; i < 240; i++) {
-    const resp = await fetch(`/api/jobs/${jobId}`);
-    const data = await resp.json();
-    if (data.job.status === 'done' || data.job.status === 'failed') {
-      setStatus('');
-      renderResult(data, ((performance.now() - startedAt) / 1000).toFixed(1));
+  function setStatus(text) {
+    statusEl.textContent = text || "";
+  }
+
+  function setStrip(status, meta) {
+    stripStatus.textContent = status;
+    stripMeta.textContent = meta || "";
+  }
+
+  function fileSize(bytes) {
+    if (bytes >= 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + " MB";
+    return Math.max(1, Math.round(bytes / 1024)) + " KB";
+  }
+
+  function selectFile(file) {
+    if (!file) return;
+    dzTitle.textContent = "已选择素材，可重新选择";
+    dzFilename.textContent = file.name + " · " + fileSize(file.size);
+    dzFile.hidden = false;
+    dropzone.classList.add("is-ready");
+    setStrip("待检测", "");
+    setStatus("");
+  }
+
+  fileInput.addEventListener("change", () => selectFile(fileInput.files[0]));
+
+  dropzone.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      fileInput.click();
+    }
+  });
+  for (const type of ["dragenter", "dragover"]) {
+    dropzone.addEventListener(type, (event) => {
+      event.preventDefault();
+      dropzone.classList.add("is-drag");
+    });
+  }
+  for (const type of ["dragleave", "drop"]) {
+    dropzone.addEventListener(type, (event) => {
+      event.preventDefault();
+      dropzone.classList.remove("is-drag");
+    });
+  }
+  dropzone.addEventListener("drop", (event) => {
+    const file = event.dataTransfer.files[0];
+    if (!file) return;
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    fileInput.files = transfer.files;
+    selectFile(file);
+  });
+
+  function setPipeline(stage) {
+    pipeline.hidden = false;
+    let index = 0;
+    if (stage.startsWith("extract")) index = 0;
+    else if (stage.startsWith("tools")) index = 1;
+    else if (stage === "fuse") index = 2;
+    else if (stage === "done") index = 3;
+    [...pipeline.children].forEach((item, i) => {
+      item.dataset.state = i < index ? "done" : i === index ? "active" : "";
+    });
+  }
+
+  function stageText(stage) {
+    if (!stage) return "排队中";
+    const [group, detail] = stage.split(":");
+    if (group === "extract") return "解析素材 · " + (SUBSTAGE[detail] || "处理中");
+    if (group === "tools") return "识别信号 · " + (SUBSTAGE[detail] || "处理中");
+    if (group === "fuse") return "汇总证据链";
+    if (stage === "done") return "完成";
+    return "处理中";
+  }
+
+  function busy(on) {
+    submitBtn.disabled = on;
+    submitBtn.textContent = on ? "检测中…" : "开始检测";
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const file = fileInput.files[0];
+    if (!file) {
+      setStatus("先选择一个素材文件");
       return;
     }
-    const stage = data.job.stage || '';
-    if (stage.startsWith('extract')) {
-      const step = stage.split(':')[1];
-      setStatus(step ? `素材解析中（${step}）…` : '素材解析中…');
-    } else {
-      setStatus('已受理，检测中…');
+    busy(true);
+    setStatus("上传中…");
+    setStrip("处理中", "");
+    setPipeline("extract");
+    resultEl.replaceChildren();
+    const startedAt = performance.now();
+    const body = new FormData();
+    body.append("file", file);
+
+    let resp;
+    try {
+      resp = await fetch("/api/upload", { method: "POST", body });
+    } catch (err) {
+      busy(false);
+      setStatus("网络异常，请重试");
+      setStrip("失败", "");
+      return;
     }
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  setStatus('处理超时，请刷新重试');
-}
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      busy(false);
+      setStatus(data.detail || "上传失败");
+      setStrip("失败", "");
+      return;
+    }
+    setStrip("处理中", "任务 #" + data.job_id);
+    setStatus("已受理，检测中…");
+    pollJob(data.job_id, startedAt);
+  });
 
-function renderResult(data, seconds) {
-  const root = document.getElementById('result');
-  root.replaceChildren();
-
-  if (data.job.status === 'failed') {
-    const panel = document.createElement('div');
-    panel.className = 'panel';
-    panel.textContent = '处理失败：' + (data.job.error || '未知错误');
-    root.append(panel);
-    return;
-  }
-
-  const card = document.createElement('div');
-  card.className = 'panel';
-
-  const head = document.createElement('div');
-  head.className = 'row';
-  const title = document.createElement('strong');
-  title.textContent = data.card ? data.card.header.title.content : '未发现风险信号';
-  head.append(title);
-  const time = document.createElement('span');
-  time.className = 'muted';
-  time.textContent = `耗时 ${seconds}s`;
-  head.append(time);
-  card.append(head);
-
-  for (const finding of data.findings) {
-    const block = document.createElement('div');
-    block.className = 'finding';
-    const line = document.createElement('div');
-    line.className = 'title';
-    const badge = document.createElement('span');
-    badge.className = 'badge ' + finding.level;
-    badge.textContent = finding.level;
-    line.append(badge, ' ', finding.suggestion);
-    block.append(line);
-    const meta = document.createElement('div');
-    meta.className = 'muted';
-    meta.textContent = `类别 ${finding.category} · 置信 ${finding.confidence == null ? '—' : finding.confidence.toFixed(2)}`;
-    block.append(meta);
-    card.append(block);
-  }
-
-  const actionEl = data.card && data.card.elements.find((el) => el.tag === 'action');
-  const reviewUrl = actionEl && actionEl.actions && actionEl.actions[0] && actionEl.actions[0].url;
-  if (reviewUrl) {
-    const row = document.createElement('div');
-    row.className = 'row';
-    row.style.marginTop = '14px';
-    const link = document.createElement('a');
-    link.className = 'btn primary';
-    link.href = reviewUrl;
-    link.textContent = '查看证据链';
-    row.append(link);
-    card.append(row);
+  async function pollJob(jobId, startedAt) {
+    for (let i = 0; i < 240; i++) {
+      const resp = await fetch(`/api/jobs/${jobId}`);
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        busy(false);
+        setStatus(data.detail || "查询失败");
+        setStrip("失败", "任务 #" + jobId);
+        return;
+      }
+      const job = data.job;
+      const seconds = ((performance.now() - startedAt) / 1000).toFixed(2);
+      if (job.status === "done") {
+        pipeline.hidden = true;
+        setStatus("");
+        setStrip("完成", `任务 #${job.id} · ${seconds}s`);
+        busy(false);
+        renderResult(data, seconds);
+        return;
+      }
+      if (job.status === "failed") {
+        pipeline.hidden = true;
+        setStatus("");
+        setStrip("失败", "任务 #" + job.id);
+        busy(false);
+        renderFailed(job);
+        return;
+      }
+      setPipeline(job.stage || "extract");
+      setStatus(stageText(job.stage) + "…");
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+    busy(false);
+    setStatus("处理超时，请重试");
+    setStrip("超时", "");
   }
 
-  root.append(card);
-}
+  function buildTally(findings) {
+    const counts = { P0: 0, P1: 0, P2: 0, P3: 0 };
+    for (const finding of findings) counts[finding.level] = (counts[finding.level] || 0) + 1;
+    const tally = el("div", "tally");
+    for (const level of LEVELS) {
+      const cell = el("div", "lv-" + level + (counts[level] ? "" : " zero"));
+      cell.append(el("span", "n", String(counts[level])));
+      cell.append(el("span", "k", level));
+      tally.append(cell);
+    }
+    return tally;
+  }
+
+  function evidenceList(items) {
+    const list = el("ul", "ev");
+    let bboxIndex = 0;
+    for (const ev of items || []) {
+      const item = el("li");
+      item.append(el("span", "kind", KIND_LABELS[ev.kind] || ev.kind));
+      const main = el("span", "ev-main");
+      if (ev.ref_url) {
+        const link = el("a", "ref", ev.ref_record_id || ev.clause_id || "打开来源");
+        link.href = ev.ref_url;
+        link.target = "_blank";
+        link.rel = "noopener";
+        main.append(link);
+      } else if (ev.ref_record_id) {
+        main.append(el("span", "ref", ev.ref_record_id));
+      }
+      if (ev.clause_id && ev.ref_record_id) main.append(el("span", "ref", ev.clause_id));
+      if (ev.bbox) main.append(el("span", "ref", "bbox(" + ev.bbox + ")"));
+      if (ev.kind === "license" && ev.note) main.append(el("span", "ev-note", ev.note));
+      item.append(main);
+      if (ev.kind === "bbox") {
+        bboxIndex += 1;
+        item.append(el("span", "loc mono", "bbox " + bboxIndex));
+      } else if (ev.t_start != null) {
+        item.append(el("span", "loc mono", "t=" + Number(ev.t_start).toFixed(2) + "s"));
+      }
+      list.append(item);
+    }
+    if (!list.children.length) {
+      const item = el("li");
+      item.append(el("span", "kind", "—"));
+      const main = el("span", "ev-main");
+      main.append(el("span", "ev-note", "无证据记录"));
+      item.append(main);
+      list.append(item);
+    }
+    return list;
+  }
+
+  function findingCard(finding) {
+    const card = el("article", "panel signal lv-" + finding.level);
+    const head = el("header", "signal-head");
+    const title = el("div", "signal-title");
+    title.append(el("span", "signal-level mono", finding.level));
+    title.append(el("h2", "signal-cat", CATEGORY_LABELS[finding.category] || finding.category));
+    head.append(title);
+    card.append(head);
+
+    const body = el("div", "signal-body");
+    const conf = el("div", "conf");
+    conf.append(el("span", "conf-label", "置信"));
+    const track = el("span", "conf-track");
+    track.setAttribute("aria-hidden", "true");
+    if (typeof finding.confidence === "number") {
+      const fill = el("i");
+      fill.style.width = Math.round(finding.confidence * 100) + "%";
+      track.append(fill);
+    }
+    conf.append(track);
+    conf.append(el("span", "conf-val mono",
+      typeof finding.confidence === "number" ? finding.confidence.toFixed(2) : "—"));
+    body.append(conf);
+
+    body.append(el("p", "conclusion", finding.suggestion));
+    const evHead = el("div", "ev-head");
+    evHead.append(el("h3", null, "证据"));
+    evHead.append(el("span", "meta mono", String((finding.evidence || []).length)));
+    body.append(evHead);
+    body.append(evidenceList(finding.evidence));
+    card.append(body);
+
+    if (finding.review_url) {
+      const foot = el("div", "signal-foot");
+      const link = el("a", "link-quiet", "查看证据链");
+      link.href = finding.review_url;
+      foot.append(link);
+      card.append(foot);
+    }
+    return card;
+  }
+
+  function reportHead(asset, findings, seconds) {
+    const head = el("section", "panel report-head");
+    const info = el("div");
+    const title = el("h2", "report-title");
+    if (findings.length) {
+      title.append(el("span", "mono", String(findings.length)), " 条风险信号");
+    } else {
+      title.textContent = "未发现风险信号";
+    }
+    info.append(title);
+
+    const meta = el("div", "report-meta");
+    if (asset) {
+      meta.append(el("span", null, asset.media_type === "video" ? "视频" : "图片"));
+      if (asset.width && asset.height) {
+        meta.append(el("span", "mono", asset.width + "×" + asset.height));
+      }
+      if (asset.duration) {
+        meta.append(el("span", "mono", Number(asset.duration).toFixed(2) + "s"));
+      }
+    }
+    const time = el("span");
+    time.append("耗时 ");
+    time.append(el("span", "mono", seconds + "s"));
+    meta.append(time);
+    info.append(meta);
+
+    head.append(info);
+    if (findings.length) head.append(buildTally(findings));
+    return head;
+  }
+
+  function passPanel() {
+    const panel = el("section", "panel pass");
+    const icon = el("div", "pass-icon");
+    icon.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    const copy = el("div");
+    copy.append(el("h3", null, "本素材复检通过"));
+    copy.append(el("p", null, "未命中图库、人物、商标、音乐或政策信号。"));
+    panel.append(icon, copy);
+    return panel;
+  }
+
+  function renderResult(data, seconds) {
+    resultEl.replaceChildren();
+    const job = data.job;
+    const asset = data.asset;
+    const findings = data.findings || [];
+
+    const report = el("section", "report");
+    report.append(reportHead(asset, findings, seconds));
+
+    const list = el("div", "stack");
+    if (findings.length) {
+      for (const finding of findings) list.append(findingCard(finding));
+    } else {
+      list.append(passPanel());
+    }
+    report.append(list);
+    resultEl.append(report);
+    requestAnimationFrame(() => report.scrollIntoView({ block: "start" }));
+  }
+
+  function renderFailed(job) {
+    resultEl.replaceChildren();
+    const report = el("section", "report");
+    const panel = el("section", "panel report-head");
+    const info = el("div");
+    info.append(el("h2", "report-title", "检测失败"));
+    info.append(el("p", "note", job.error || "未知错误，请重试。"));
+    panel.append(info);
+    report.append(panel);
+    resultEl.append(report);
+    requestAnimationFrame(() => report.scrollIntoView({ block: "start" }));
+  }
 </script>
 {% endblock %}
