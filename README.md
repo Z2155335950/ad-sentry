@@ -34,6 +34,26 @@
 | 授权台账 | 上传授权书自动识别有效期、地域、媒介，过期或超范围自动升级风险 |
 | 双层复核 | 置信度中等的结论会自动放大裁剪后复查一次 |
 
+## 技术栈
+
+| 层 | 用了什么 |
+| --- | --- |
+| 语言 / 运行时 | Python 3.11+ |
+| Web 后端 | FastAPI、Uvicorn、Jinja2 服务端渲染 |
+| 数据 | SQLModel + SQLite（WAL）+ Pydantic Settings |
+| 前端 | 服务端渲染 HTML + 原生 CSS/JS，无前端框架 |
+| 音视频 | FFmpeg、OpenCV、PySceneDetect（分镜）、Pillow |
+| 语音转写 | faster-whisper（本地 CPU 推理） |
+| OCR | PaddleOCR / RapidOCR（ONNX，同一套 PP-OCR 模型） |
+| 检索与匹配 | rank-bm25（政策条款检索）、rapidfuzz（商标模糊匹配）、imagehash（pHash 去重） |
+| 文档解析 | PyMuPDF（授权书 PDF 文本层） |
+| 视觉与音频模型 | Google Cloud Vision（反向图搜 / logo）、AWS Rekognition（公众人物）、ACRCloud（BGM 指纹）、open_clip（logo 向量，可选） |
+| LLM | Anthropic Claude（可选，仅用于授权书字段补全） |
+| 机器人 | lark-oapi（飞书长连接 WebSocket） |
+| 工程 | pytest、ruff、Docker / Docker Compose、Make |
+
+外部 AI 服务都是**可替换、可 mock** 的：默认 `TOOLS_MODE=mock` 读本地缓存，不联网也能跑通全流程；凭证齐全后切 `auto` 才走真实接口。
+
 ## 快速开始
 
 需要 Python 3.11+。
